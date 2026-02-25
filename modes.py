@@ -63,81 +63,86 @@ mode_radius_indexes = np.repeat(mode_radius_indexes, param.p) # shape (K,)
 mode_q_values = np.array(mode_q_values, dtype=float) # shape (K/p,)
 mode_q_values = np.repeat(mode_q_values, param.p) # shape (K,)
 
-
 def build_mode_maps(k: np.ndarray, p_max: int | None = None):
     """
+    Build lookup tables for a set of modes.
+
     Parameters
     ----------
-    k : (K,3) int array
-        Each row is [m,n,p]. Assume no duplicates.
+    k : (K, 3) int ndarray
+        Each row must be (n, m, p).  (⚠️ 중요: (n,m,p) 순서)
+        Assume no duplicates.
     p_max : int | None
-        If None, use max(p)+1 inferred from k.
+        If None, inferred as max(p)+1.
 
     Returns
     -------
-    m_plus  : (K,) int array
-    m_minus : (K,) int array
-    index_of_mode : (n_max+1, m_max+1, p_max) int array filled with -1 if missing
-    same_mn : (K, p_max) int array
-        same_mn[i, pp] = index j such that k[j] = [n_i, m_i, pp], or -1 if missing
+    m_plus  : (K,) int ndarray
+        m_plus[i] = j such that k[j] == (n_i, m_i+1, p_i), else -1.
+    m_minus : (K,) int ndarray
+        m_minus[i] = j such that k[j] == (n_i, m_i-1, p_i), else -1.
+    index_of_mode : (n_max+1, m_max+1, p_max) int ndarray
+        index_of_mode[n, m, p] = i if exists, else -1.
+    same_mn : (K, p_max) int ndarray
+        same_mn[i, pp] = j such that k[j] == (n_i, m_i, pp), else -1.
     """
     k = np.asarray(k)
+
+    # --- validation ---
     if k.ndim != 2 or k.shape[1] != 3:
-        raise ValueError("k must have shape (K,3).")
+        raise ValueError("k must have shape (K,3) with columns (n,m,p).")
     if not np.issubdtype(k.dtype, np.integer):
         raise ValueError("k must be an integer array.")
 
     K = k.shape[0]
+    if K == 0:
+        if p_max is None:
+            p_max = 0
+        m_plus = np.empty((0,), dtype=int)
+        m_minus = np.empty((0,), dtype=int)
+        index_of_mode = np.full((0, 0, p_max), -1, dtype=int)
+        same_mn = np.empty((0, p_max), dtype=int)
+        return m_plus, m_minus, index_of_mode, same_mn
+
+    # columns: (n,m,p)
+    n = k[:, 0].astype(int, copy=False)
+    m = k[:, 1].astype(int, copy=False)
+    p = k[:, 2].astype(int, copy=False)
+
     if p_max is None:
-        p_max = int(k[:, 2].max()) + 1
+        p_max = int(p.max()) + 1
 
-    n_max = int(k[:, 0].max())
-    m_max = int(k[:, 1].max())
+    # duplicates check (optional but strongly recommended)
+    if np.unique(k, axis=0).shape[0] != K:
+        raise ValueError("Duplicate (n,m,p) entries found in k.")
 
-    # (n,m,p) -> index
-    index_map = {tuple(row): i for i, row in enumerate(k)}
+    n_max = int(n.max())
+    m_max = int(m.max())
 
-    def lookup_targets(targets: np.ndarray) -> np.ndarray:
-        out = np.full(K, -1, dtype=int)
-        for i, key in enumerate(map(tuple, targets)):
-            out[i] = index_map.get(key, -1)
-        return out
-
-    # m_plus, m_minus
-    t_plus = k.copy()
-    t_plus[:, 0] += 1
-    m_plus = lookup_targets(t_plus)
-
-    t_minus = k.copy()
-    t_minus[:, 0] -= 1
-    m_minus = lookup_targets(t_minus)
-
-    # index_of_mode[n,m,p] = i  (없으면 -1)
+    # --- index_of_mode[n, m, p] = i ---
     index_of_mode = np.full((n_max + 1, m_max + 1, p_max), -1, dtype=int)
-    n = k[:, 0]
-    m = k[:, 1]
-    p = k[:, 2]
+
     valid_p = (0 <= p) & (p < p_max)
+    # n,m are assumed valid for the allocated bounds because n_max/m_max come from them.
     index_of_mode[n[valid_p], m[valid_p], p[valid_p]] = np.arange(K, dtype=int)[valid_p]
 
-    # same_mn: 각 (n,m)에 대해 p=0..p_max-1 인덱스 벡터를 만들고, 이를 각 i에 복제
-    mn = k[:, :2]
-    mn_unique, inv = np.unique(mn, axis=0, return_inverse=True)  # inv: (K,)
-    U = mn_unique.shape[0]
+    # --- m_plus / m_minus (shift m, NOT n) ---
+    m_plus = np.full(K, -1, dtype=int)
+    m_minus = np.full(K, -1, dtype=int)
 
-    # (U, p_max) 테이블: pair u의 [n,m,pp] 인덱스
-    per_pair = np.empty((U, p_max), dtype=int)
-    for u, (mu, nu) in enumerate(mn_unique):
-        if 0 <= mu <= m_max and 0 <= nu <= n_max:
-            per_pair[u, :] = index_of_mode[nu, mu, :]
-        else:
-            per_pair[u, :] = -1
+    valid_plus = valid_p & (m + 1 <= m_max)
+    m_plus[valid_plus] = index_of_mode[n[valid_plus], m[valid_plus] + 1, p[valid_plus]]
 
-    same_mn = per_pair[inv]  # (K, p_max)
+    valid_minus = valid_p & (m - 1 >= 0)
+    m_minus[valid_minus] = index_of_mode[n[valid_minus], m[valid_minus] - 1, p[valid_minus]]
+
+    # --- same_mn: same (n,m) with all p ---
+    # advanced indexing gives shape (K, p_max)
+    same_mn = index_of_mode[n, m, :]
 
     return m_plus, m_minus, index_of_mode, same_mn
 
-m_plus, m_minus, index_of_mode, same_mn = build_mode_maps(ks)
+m_plus, m_minus, index_of_mode, same_nm = build_mode_maps(ks)
 
 
 # def plot_modes():

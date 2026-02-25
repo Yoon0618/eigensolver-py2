@@ -2,16 +2,16 @@ import numpy as np
 from numpy import exp, cosh, tanh
 import sympy as sp
 
-n_start, n_delta, n_end = 4, 4, 48
-# n_start, n_delta, n_end = 5, 1, 15
-m_start, m_delta, m_end = 1, 1, 150
+n_start, n_delta, n_end = 4, 6, 48
+# n_start, n_delta, n_end = 5, 5, 15
+m_start, m_delta, m_end = 1, 3, 150
+p = 20 # radiam mode (p=0, 1, 2, 3,... p-1)
 
-r_start, r_end = 0.1, 0.9
+r_start, r_end = 0.2, 0.9
 r_num = 256
 dr = 1/r_num
 rs = np.linspace(dr, 1.0, r_num)
 
-p = 5 # radiam mode (p=0, 1, 2, 3,... p-1)
 
 rhos0 = 7.086026e-03
 a = 0.5 # minor radius
@@ -41,7 +41,6 @@ R_Lne = sp.Float(1/0.45)
 R_Lte = sp.Float(6.92)
 R_Lti = sp.Float(6.92)
 Te_T0 = sp.Float(1.0)
-rmajor = sp.Float(1.3/0.48)  # R/a
 
 # x = r/a (0~1)
 x = sp.Symbol("x", real=True)
