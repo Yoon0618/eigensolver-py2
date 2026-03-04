@@ -1,10 +1,70 @@
 # modes.py
 # 이 코드는 가능한 (n,m) 모드들을 찾아 2D 어레이로 저장한다.
 print("[modes.py]")
+
+#####################################################
+"""
+이 코드가 저장하는 것
+
+ks: shape (K, 3) int ndarray, 각 행은 (n, m, p) 모드의 인덱스. n은 poloidal mode number, m은 toroidal mode number, p는 radial mode number.
+ex) ks[0] = [n1, m1, p1], ks[1] = [n1, m1, p2], ks[2] = [n1, m2, p1], ks[3] = [n1, m2, p2], ks[4] = [n2, m1, p1], ...
+
+mode_radius_indexes: shape (K,) int ndarray, 각 모드의 반지름에 가장 가까운 r의 인덱스. p 모드마다 같은 값이 반복된다.
+ex) mode_radius_indexes[k1] = k1 모드의 반지름, 정수
+ex) rs[mode_radius_indexes[k1]] = k1 모드의 반지름, 실수
+
+mode_q_values: shape (K,) float ndarray, 각 모드의 q 값. p 모드마다 같은 값이 반복된다.
+ex) mode_q_values[k1] = k1 모드의 q 값, 실수
+
+m_plus: shape (K,) int ndarray, 
+k의 모드가 (n, m, p)일 때, m_plus[k]는 (n, m+1, p) 모드의 인덱스. 만약 (n, m+1, p) 모드가 존재하지 않으면 -1.
+ex) m_plus[k1] = k2, where ks[k1] = (n, m, p) and ks[k2] = (n, m+1, p)
+
+m_minus: shape (K,) int ndarray,
+k의 모드가 (n, m, p)일 때, m_minus[k]는 (n, m-1, p) 모드의 인덱스. 만약 (n, m-1, p) 모드가 존재하지 않으면 -1.
+ex) m_minus[k1] = k3, where ks[k1] = (n, m, p) and ks[k3] = (n, m-1, p)
+
+index_of_mode: shape (n_max+1, m_max+1, p_max) int ndarray,
+n,m은 0이 없어서 +1 shape를 가짐
+k의 모드가 (n, m, p)일 때, index_of_mode[n, m, p]는 k 모드의 인덱스. 만약 (n, m, p) 모드가 존재하지 않으면 -1.
+ex) index_of_mode[n, m, p] = k1, where ks[k1] = (n, m, p)
+
+same_nm: shape (K, p_max) int ndarray,
+k의 모드가 (n, m, p)일 때, same_nm[k, pp]는 (n, m, pp) 모드의 인덱스. 만약 (n, m, pp) 모드가 존재하지 않으면 -1.
+ex) same_nm[k1, pp] = k2, where ks[k1] = (n, m, p) and ks[k2] = (n, m, pp)
+"""
+
 # %%
 from matplotlib import pyplot as plt
 import numpy as np
 import parameters as param
+
+
+class SafeSameMN:
+    def __init__(self, data: np.ndarray):
+        self._data = data
+
+    @property
+    def shape(self):
+        return self._data.shape
+
+    def __array__(self, dtype=None):
+        return np.asarray(self._data, dtype=dtype)
+
+    def __repr__(self):
+        return repr(self._data)
+
+    def __getitem__(self, key):
+        if isinstance(key, tuple) and len(key) == 2:
+            i, p = key
+            if isinstance(i, (int, np.integer)) and isinstance(p, (int, np.integer)):
+                n_rows, n_cols = self._data.shape
+                i_int = int(i)
+                p_int = int(p)
+                if i_int < 0 or i_int >= n_rows or p_int < 0 or p_int >= n_cols:
+                    return -1
+                return int(self._data[i_int, p_int])
+        return self._data[key]
 
 # ns = [n_start, n_start + n_delta, ..., n_end]
 # ms = [m_start, m_start + m_delta, ..., m_end]
@@ -83,8 +143,9 @@ def build_mode_maps(k: np.ndarray, p_max: int | None = None):
         m_minus[i] = j such that k[j] == (n_i, m_i-1, p_i), else -1.
     index_of_mode : (n_max+1, m_max+1, p_max) int ndarray
         index_of_mode[n, m, p] = i if exists, else -1.
-    same_mn : (K, p_max) int ndarray
+    same_mn : SafeSameMN
         same_mn[i, pp] = j such that k[j] == (n_i, m_i, pp), else -1.
+        If i or pp is out of bounds for integer indexing, returns -1 (no IndexError).
     """
     k = np.asarray(k)
 
@@ -101,7 +162,7 @@ def build_mode_maps(k: np.ndarray, p_max: int | None = None):
         m_plus = np.empty((0,), dtype=int)
         m_minus = np.empty((0,), dtype=int)
         index_of_mode = np.full((0, 0, p_max), -1, dtype=int)
-        same_mn = np.empty((0, p_max), dtype=int)
+        same_mn = SafeSameMN(np.empty((0, p_max), dtype=int))
         return m_plus, m_minus, index_of_mode, same_mn
 
     # columns: (n,m,p)
@@ -138,7 +199,7 @@ def build_mode_maps(k: np.ndarray, p_max: int | None = None):
 
     # --- same_mn: same (n,m) with all p ---
     # advanced indexing gives shape (K, p_max)
-    same_mn = index_of_mode[n, m, :]
+    same_mn = SafeSameMN(index_of_mode[n, m, :])
 
     return m_plus, m_minus, index_of_mode, same_mn
 

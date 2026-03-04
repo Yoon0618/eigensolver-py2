@@ -2,10 +2,10 @@ import numpy as np
 from numpy import exp, cosh, tanh
 import sympy as sp
 
-n_start, n_delta, n_end = 4, 6, 48
+n_start, n_delta, n_end = 4, 4, 40
 # n_start, n_delta, n_end = 5, 5, 15
-m_start, m_delta, m_end = 1, 3, 150
-p = 20 # radiam mode (p=0, 1, 2, 3,... p-1)
+m_start, m_delta, m_end = 1, 1, 30
+p = 10 # radiam mode (p=0, 1, 2, 3,... p-1)
 
 r_start, r_end = 0.2, 0.9
 r_num = 256
@@ -15,7 +15,8 @@ rs = np.linspace(dr, 1.0, r_num)
 
 rhos0 = 7.086026e-03
 a = 0.5 # minor radius
-rho_s = rhos0/a
+# rho_s = rhos0/a
+rho_s = rhos0
 R = 1.3 # major radius
 rmajor = 1.3/0.48 # R/a, aspect ratio
 k_theta_rho_i_cut = 1.3
@@ -24,6 +25,7 @@ mu1 = 0.1
 mu2 = 0.0
 
 basis = "bessel" # "bessel" or "hermite"
+w_mn = 5*rho_s
 
 # quilibrium profiles
 

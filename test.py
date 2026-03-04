@@ -1,70 +1,103 @@
 import numpy as np
-import parameters as param
-import modes
-import scipy.special as sp
+from numpy.polynomial.hermite import hermgauss
+from numpy.polynomial.legendre import leggauss
+from scipy import special
 
-dr_ = 1/param.r_num # 적분 구간이 정규화되어 있으므로 균일한 dr은 단순히 1/r_num이다. rs = [0, dr, 2*dr, ..., r_end]
-# rs = [dr, 2*dr, ..., r_end] -> 적분 가중치가 r*dr이라 r=0은 영향이 없으므로 dr부터 시작한다.
-rs = np.linspace(dr_, param.r_end, param.r_num, endpoint=True, )
-fac = np.ones_like(rs) 
-fac[-1] = 0.5 # 사다리꼴 리만합
-rdr = fac*rs*dr_ # r*dr 적분에 사용
-dr = fac*dr_ # dr 적분에 사용
+# -----------------------------
+# Normalization: v_p
+# v_p = 2^{p/2} * Gamma(p+1)^{1/2} * pi^{1/4}
+# so v_p^2 = 2^p p! sqrt(pi)
+# -----------------------------
+def v_p(p: int) -> float:
+    return (2.0 ** (p / 2.0)) * np.sqrt(special.gamma(p + 1.0)) * (np.pi ** 0.25)
 
-alpha = np.empty((param.m_end+1, param.p)) # j_m (alpha[m, p]) = 0
-for m in range(param.m_end+1):
-    alpha[m] = sp.jn_zeros(m, param.p)
+# Physicists' Hermite polynomial H_p(x)
+def H(p: int, x):
+    return special.eval_hermite(p, x)
 
-W = lambda k: np.sqrt(2) / sp.jv(k[0]+1, alpha[k[0], k[2]]) * sp.jv(k[0], alpha[k[0], k[2]] * rs)
-dWdr = lambda k: np.sqrt(2) / sp.jv(k[0]+1, alpha[k[0], k[2]]) * sp.jvp(k[0], alpha[k[0], k[2]] * rs) * alpha[k[0], k[2]]
-d2Wdr2 = lambda k: np.sqrt(2) / sp.jv(k[0]+1, alpha[k[0], k[2]]) * sp.jvp(k[0], alpha[k[0], k[2]] * rs, n=2) * alpha[k[0], k[2]]**2
+# -----------------------------
+# 1) Exact delta test in x-space:
+# I_pp' = (1/(2 v_p v_p')) * ∫ H_p(x) H_p'(x) e^{-x^2} dx
+# Use Gauss-Hermite quadrature, which is exact for polynomials under e^{-x^2}.
+# -----------------------------
+def delta_test_x(pmax: int = 10, N_gh: int = 80):
+    # nodes, weights for ∫ f(x) e^{-x^2} dx
+    xg, wg = hermgauss(N_gh)
 
-LW = lambda k: param.rho_s**2 * (d2Wdr2(k) + 1/rs * dWdr(k) - k[0]**2 / rs**2 * W(k))
-LWrdr = lambda k: LW(k) * rdr
+    M = np.zeros((pmax + 1, pmax + 1), dtype=float)
+    for p in range(pmax + 1):
+        Hp = H(p, xg)
+        vp = v_p(p)
+        for q in range(pmax + 1):
+            Hq = H(q, xg)
+            vq = v_p(q)
+            integral = np.sum(wg * Hp * Hq)  # ≈ ∫ H_p H_q e^{-x^2} dx
+            M[p, q] = integral / (2.0 * vp * vq)
 
-# 반지름에 대해 미리 계산해 놓기
-W_kk = np.empty((len(modes.ks), len(rs)), dtype=float)
-dWdr_kk = np.empty_like(W_kk)
-d2Wdr2_kk = np.empty_like(W_kk)
-LW_kk = np.empty_like(W_kk)
-LWrdr_kk = np.empty_like(W_kk)
-for i, k in enumerate(modes.ks):
-    W_kk[i] = W(k)
-    dWdr_kk[i] = dWdr(k)
-    d2Wdr2_kk[i] = d2Wdr2(k)
-    LW_kk[i] = LW(k)
-    LWrdr_kk[i] = LW_kk[i] * rdr
+    return M
 
-LL = LW_kk @ LWrdr_kk.T # shape (K, K)
-# plot LL
-import matplotlib.pyplot as plt
-plt.imshow(LL, cmap="viridis")
-plt.colorbar()
-plt.title("LL")
-plt.xlabel("k2")
-plt.ylabel("k1")
-plt.show()
-print("precomputation done")
+# -----------------------------
+# 2) Approx delta test in rho-space for W_p(rho):
+# W_p(rho) = [1/sqrt(2*rho*w*v_p)] * H_p(x) * exp(-x^2/2),
+# x = (rho - rho0)/w
+# Check: ∫_{rho_min}^{rho_max} W_p W_q rho drho ≈ δ_pq
+# Use Gauss-Legendre quadrature on rho.
+# -----------------------------
+def W(p: int, rho, rho0: float, w: float):
+    x = (rho - rho0) / w
+    return (H(p, x) * np.exp(-0.5 * x * x)) / np.sqrt(2.0 * rho * w * v_p(p))
 
-def inner_product(k1, k2, OW_kk, weight):
-    m1, n1, p1 = k1
-    m2, n2, p2 = k2
-    
-    Wk2 = W_kk[k2]
-    OW = OW_kk[k1]
-    return np.sum(OW * Wk2 * weight)
+def delta_test_rho(
+    pmax: int = 10,
+    rho0: float = 0.5,
+    w: float = 0.03,
+    rho_min: float = 1e-8,
+    rho_max: float = 1.0,
+    N_gl: int = 4000,
+):
+    # Gauss-Legendre nodes/weights for ∫_{-1}^{1} ...
+    t, wt = leggauss(N_gl)
+    # map to [rho_min, rho_max]
+    rho = 0.5 * (rho_max - rho_min) * t + 0.5 * (rho_max + rho_min)
+    drho = 0.5 * (rho_max - rho_min)
 
-L_kk = np.empty((len(modes.ks), len(modes.ks)), dtype=float)
-for i, k1 in enumerate(modes.ks):
-    print(f"computing row {i+1}/{len(modes.ks)}")
-    for j, k2 in enumerate(modes.ks):
-        L_kk[i, j] = inner_product(k1, k2, LW_kk, rdr)
+    M = np.zeros((pmax + 1, pmax + 1), dtype=float)
+    for p in range(pmax + 1):
+        Wp = W(p, rho, rho0=rho0, w=w)
+        for q in range(pmax + 1):
+            Wq = W(q, rho, rho0=rho0, w=w)
+            integral = drho * np.sum(wt * (rho * Wp * Wq))
+            M[p, q] = integral
+    return M
 
-# plot L_kk
-import matplotlib.pyplot as plt
-plt.imshow(L_kk, cmap="viridis")
-plt.colorbar()
-plt.title("L_kk")
-plt.xlabel("k2")
-plt.ylabel("k1")
-plt.show()
+# -----------------------------
+# Run + report
+# -----------------------------
+if __name__ == "__main__":
+    pmax = 12
+
+    # 1) x-space: should be identity (Kronecker delta)
+    Mx = delta_test_x(pmax=pmax, N_gh=80)
+    Ix = np.eye(pmax + 1)
+    err_x = Mx - Ix
+    print("[x-space] max |offdiag| =", np.max(np.abs(err_x - np.diag(np.diag(err_x)))))
+    print("[x-space] max |diag-1|  =", np.max(np.abs(np.diag(Mx) - 1.0)))
+
+    # 2) rho-space: approximate identity if localized well
+    Mr = delta_test_rho(
+        pmax=pmax,
+        rho0=0.5,   # center away from boundaries
+        w=0.03,     # narrower -> better approx
+        rho_min=1e-8,
+        rho_max=1.0,
+        N_gl=4000
+    )
+    Ir = np.eye(pmax + 1)
+    err_r = Mr - Ir
+    print("[rho-space] max |offdiag| =", np.max(np.abs(err_r - np.diag(np.diag(err_r)))))
+    print("[rho-space] max |diag-1|  =", np.max(np.abs(np.diag(Mr) - 1.0)))
+
+    # Optional: print matrices if you want
+    # np.set_printoptions(precision=3, suppress=True)
+    # print("Mx=\n", Mx)
+    # print("Mr=\n", Mr)

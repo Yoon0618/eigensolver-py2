@@ -6,6 +6,7 @@ print("[matrices.py]")
 import numpy as np
 import parameters as param
 import modes
+import plot
 import scipy.special as sp
 import matplotlib.pyplot as plt
 
@@ -42,35 +43,115 @@ d_lntau_dr = param.d_lntau_dr
 ks = modes.ks
 mode_radius_indexes = modes.mode_radius_indexes
 mode_q_values = modes.mode_q_values
+# 인덱스 매핑 변수들 불러오기
+m_plus, m_minus, index_of_mode, same_nm = modes.m_plus, modes.m_minus, modes.index_of_mode, modes.same_nm
 
-# %% 베셀 함수 미리 계산
+basis = param.basis
+
+# %% 정보들 출력
+print(f"number of modes (K) = {len(ks)} for n in {param.n_start}~{param.n_end} with delta {param.n_delta}, m in {param.m_start}~{param.m_end} with delta {param.m_delta}, p = {param.p}")
+print(f"q profile = {param.q_profile_type}")
+print(f"basis function = {basis}")
 
 
-# 베셀 함수 영점 어레이
-# alpha[m, p] = p+1번째 영점 of J_m
-alpha = np.empty((param.m_end+1, param.p)) # j_m (alpha[m, p]) = 0
-for m in range(param.m_end+1):
-    alpha[m] = sp.jn_zeros(m, param.p)
 
-# Wk는 k 값에 따라 달라짐. 이를 미리 다 계산해줌.
-# W = [Wk(k1), Wk(k2), ..., Wk(kK)], shape (K, r_num)
-# Wk(r) = sqrt(2) / J_{m+1}(alpha[m, p]) * J_m(alpha[m, p] * r)
+# %% 반경 기저 함수 미리 계산
 
 W = np.empty((len(ks), len(rs)), dtype=float) # W[k, r] = Wk(r)
 dWdr = np.empty_like(W) # dWdr[k, r] = dWk/dr(r)
 d2Wdr2 = np.empty_like(W) # d2Wdr2[k, r] = d^2Wk/dr^2(r)
 
-for i, k in enumerate(ks):
-    n, m, p = k
-    Wk = np.sqrt(2) / sp.jv(m+1, alpha[m, p]) * sp.jv(m, alpha[m, p] * rs)
-    dWdrk = np.sqrt(2) / sp.jv(m+1, alpha[m, p]) * sp.jvp(m, alpha[m, p] * rs) * alpha[m, p]
-    # d2Wdr2k = np.sqrt(2) / sp.jv(m+1, alpha[m, p]) * sp.jvp(m, alpha[m, p] * rs, n=2) * alpha[m, p]**2
+# 베셀 함수의 기저 경우
+if basis=="bessel": 
+    #######################################################
+    # 베셀 함수 영점 alpha[m, p] 계산
 
-    W[i] = Wk
-    dWdr[i] = dWdrk
-    # d2Wdr2[i] = d2Wdr2k
+    # alpha[m, p] = p+1번째 영점 of J_m
+    alpha = np.empty((param.m_end+1, param.p)) # j_m (alpha[m, p]) = 0
+    for m in range(param.m_end+1):
+        alpha[m] = sp.jn_zeros(m, param.p)
 
-print(f"W, dWdr, d2Wdr2 computed. Shapes: {W.shape}, {dWdr.shape}, {d2Wdr2.shape}")
+    #######################################################
+    # Wk(r)와 그 도함수들을 미리 계산한다.
+
+    # Wk는 k 값에 따라 달라짐. 이를 미리 다 계산해줌.
+    # W = [Wk(k1), Wk(k2), ..., Wk(kK)], shape (K, r_num)
+    # Wk(r) = sqrt(2) / J_{m+1}(alpha[m, p]) * J_m(alpha[m, p] * r)
+
+    for i, k in enumerate(ks):
+        n, m, p = k
+        Wk = np.sqrt(2) / sp.jv(m+1, alpha[m, p]) * sp.jv(m, alpha[m, p] * rs)
+        dWdrk = np.sqrt(2) / sp.jv(m+1, alpha[m, p]) * sp.jvp(m, alpha[m, p] * rs) * alpha[m, p]
+        # d2Wdr2k = np.sqrt(2) / sp.jv(m+1, alpha[m, p]) * sp.jvp(m, alpha[m, p] * rs, n=2) * alpha[m, p]**2
+
+        W[i] = Wk
+        dWdr[i] = dWdrk
+        # d2Wdr2[i] = d2Wdr2k 
+
+    print(f"W, dWdr, d2Wdr2 computed. Shapes: {W.shape}, {dWdr.shape}, {d2Wdr2.shape}")
+
+
+# 에르미트 함수 기저의 경우
+elif basis=="hermite":
+    #######################################################
+    # Wnmp(rho) = 1/sqrt(2 rho w_mn) 1/v_p * H_p(x) * exp(-x^2/2)
+        # x = (rho - rho_mn) / w_mn
+        # w_mn = 5 rho_s
+        # v_p = 2^(p/2) Gamma(p+1)^1/2 pi^1/4
+
+    w_mn = param.w_mn
+    for i, (n, m, p) in enumerate(ks):
+        
+        # print(f"computing W for mode (n={n}, m={m}, p={p}) with {mode_radius_indexes[i]}, rho_mn={param.rs[mode_radius_indexes[i]]} and q={mode_q_values[i]}")
+        x = (rs - rs[mode_radius_indexes[i]])/w_mn
+        v_p = 2**(p/2) * np.sqrt(sp.gamma(p+1)) * np.pi**0.25
+        Wk = 1.0/(np.sqrt(2 * rs * w_mn) * v_p) * sp.eval_hermite(p, x) * np.exp(-0.5 * x*x)
+        W[i] = Wk
+    
+    # normalize W
+    for i in range(len(ks)):
+        norm = np.sum(W[i] * W[i] * rdr)
+        W[i] /= np.sqrt(norm)
+
+    # dWdr, d2wdr2
+    for i, (n, m, p) in enumerate(ks):
+        p_minus = same_nm[i, p-1]
+        p_plus = same_nm[i, p+1]
+        p_2minus = same_nm[i, p-2]
+        p_2plus = same_nm[i, p+2]
+
+        Wk_p_minus = W[p_minus] if p_minus != -1 else 0
+        Wk_p_plus = W[p_plus] if p_plus != -1 else 0
+        Wk_p_2minus = W[p_2minus] if p_2minus != -1 else 0
+        Wk_p_2plus = W[p_2plus] if p_2plus != -1 else 0
+
+        dWdrk = 1/w_mn * ( np.sqrt(p/2) * Wk_p_minus - w_mn/(2*rs) * W[i] - np.sqrt((p+1)/2) * Wk_p_plus )
+        d2Wdr2k = np.sqrt(p*(p-1))/2 * rho_s* rho_s / w_mn / w_mn * Wk_p_2minus - ( (rho_s*m/rs[mode_radius_indexes[i]]) * (p+0.5)*(rho_s/w_mn)**2 ) * W[i] + np.sqrt((p+1)*(p+2))/2 * rho_s* rho_s / w_mn / w_mn * Wk_p_2plus
+        
+        dWdr[i] = dWdrk
+        d2Wdr2[i] = d2Wdr2k
+
+    # orthogonality check
+    # p=p'인 경우에만 적분이 1이 되어야 함. p!=p'인 경우에는 적분이 0이 되어야 함.
+    orthogonality = np.zeros((len(ks), len(ks)), dtype=float)
+    delta_pp = np.zeros_like(orthogonality)
+    for i, k1 in enumerate(ks):
+        n1, m1, p1 = k1
+        for j, k2 in enumerate(ks):
+            n2, m2, p2 = k2
+            integrand = W[i] * W[j] * rdr
+            
+            orthogonality[i, j] = np.sum(integrand)
+            if n1 == n2 and m1 == m2 and p1 == p2:
+                delta_pp[i, j] = 1
+    
+    
+    
+    print(f"orthogonality check for hermite basis: \n{orthogonality}")
+    plot.plot_matrices([orthogonality, delta_pp], ["Hermite Basis Orthogonality", "delta pp"])
+    plot.plot_matrices([dWdr, d2Wdr2], ["dWdr", "d2Wdr2"])
+
+
 
 # %% 행렬 계산
 
@@ -110,8 +191,6 @@ GTi = np.zeros_like(L) # GT[k1, k2] = <k1|GT|k2>
 a = np.zeros_like(L)
 b = np.zeros_like(L)
 
-# 인덱스 매핑 변수들 불러오기
-m_plus, m_minus, index_of_mode, same_nm = modes.m_plus, modes.m_minus, modes.index_of_mode, modes.same_nm
 
 for i, k1 in enumerate(ks):
     n1, m1, p1 = k1
@@ -119,6 +198,7 @@ for i, k1 in enumerate(ks):
         n2, m2, p2 = k2
         if n1 == n2 and m1 == m2:
             WWrdr = W[i] * W[j] * rdr
+            WWdr = W[i] * W[j] * dr
 
             # k_parallel kk' 계산
             integrand_k_parallel = (m1/q - n1) * WWrdr
@@ -141,15 +221,15 @@ for i, k1 in enumerate(ks):
             D_glf_kk = - np.sqrt(8/np.pi) * 1/rmajor * np.sum(integrand_D_glf)
             
             # Gp_kk' 계산
-            integrand_Gp = dpdr * WWrdr
+            integrand_Gp = dpdr * WWdr
             Gp_kk = - rho_s * m1 * np.sum(integrand_Gp)
 
             # Gn_kk' 계산
-            integrand_Gn = dndr * WWrdr
+            integrand_Gn = dndr * WWdr
             Gn_kk = - rho_s * m1 * np.sum(integrand_Gn)
 
             # GTi_kk' 계산
-            integrand_GTi = dTidr * WWrdr
+            integrand_GTi = dTidr * WWdr
             GTi_kk = - rho_s * m1 * np.sum(integrand_GTi)
 
             k_parallel[i, j] = k_parallel_kk
