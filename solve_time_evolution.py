@@ -93,7 +93,7 @@ plt.figure(figsize=(10, 6))
 for i, n in enumerate(n_values):
     plt.plot(ts, growth_rates[i], label=f'n={n}')
 plt.xlabel('Normalized Time')
-plt.ylabel('Growth Rate')
+plt.ylabel('Growth Rate (F\'/F)')
 plt.title('Growth Rate vs Time for Different n Modes')
 # 파라미터 텍스트로 추가
 # 시간 스텝과 시뮬레이션 시간, 초기값 크기 등을 텍스트로 추가한다.
