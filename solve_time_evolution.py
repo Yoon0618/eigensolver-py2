@@ -30,7 +30,10 @@ A31 = k_parallel + tau_k_parallel
 A32 = k_parallel
 A33 = 1j * Dc
 
-A = -1j*np.block([[A11, A12, A13],
+# A = -1j*np.block([[A11, A12, A13],
+            #   [A21, A22, A23],
+            #   [A31, A32, A33]])
+A = np.block([[A11, A12, A13],
               [A21, A22, A23],
               [A31, A32, A33]])
 print(f"complete constructing A matrix. shape: {A.shape}")
@@ -102,5 +105,5 @@ text2 = f"dt={dt}, total time={ts[-1]}, initial perturbation={F0.max():.1e}"
 plt.text(0.05, 0.95, text1 + text2, transform=plt.gca().transAxes, fontsize=10, verticalalignment='top')
 plt.legend()
 plt.grid()
-plt.savefig("growth_rate_time_evolution.png", dpi=300)
+plt.savefig(f"{param.image_dir}/growth_rate_time_evolution.png", dpi=300)
 plt.show()

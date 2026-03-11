@@ -107,6 +107,6 @@ filename = f"n{param.n_start}_{param.n_end}_m{param.m_start}_{param.m_end}_p{par
 plt.text(0.5, 0.5, text, transform=plt.gca().transAxes, fontsize=10, verticalalignment='center', horizontalalignment='center', bbox=dict(facecolor='white', alpha=0.8))
 plt.legend()
 plt.grid()
-plt.savefig(f"{filename}.png", dpi=300)
+plt.savefig(f"{param.image_dir}/{filename}.png", dpi=300)
 plt.show()
 

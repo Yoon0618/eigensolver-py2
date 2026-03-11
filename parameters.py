@@ -27,6 +27,8 @@ mu2 = 0.0
 basis = "bessel" # "bessel" or "hermite"
 w_mn = 5*rho_s
 
+image_dir = "images" # directory to save images, relative to the current working directory
+
 # quilibrium profiles
 
 q_profile_type = "monotonic" # "monotonic" or "reversed"
