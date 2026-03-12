@@ -71,8 +71,8 @@ ex) ks[most_unstable_mode_indexes[0]] -> n1 모드에서 가장 성장률이 큰
 """
 
 most_unstable_mode_indexes = np.empty_like(n_values, dtype=int) # 각 n 모드에서 가장 성장률이 큰 모드의 인덱스를 저장할 리스트. shape (len(n_values),)
-gammas = np.empty_like(n_values) # growth rates of most unstable modes
-omegas = np.empty_like(n_values) # frequency of most unstable modes
+gammas = np.empty_like(n_values, dtype=float) # growth rates of most unstable modes
+omegas = np.empty_like(n_values, dtype=float) # frequency of most unstable modes
 for i, eigenvalues in enumerate(eigenvalues_blocked):
     print(f"eigenvalues_blocked[{i}] shape: {eigenvalues.shape}")
     most_unstable_mode_index = np.argmax(eigenvalues.imag) # 가장 성장률이 큰 모드의 인덱스를 찾는다.
