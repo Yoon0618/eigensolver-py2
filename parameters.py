@@ -2,9 +2,9 @@ import numpy as np
 from numpy import exp, cosh, tanh
 import sympy as sp
 
-n_start, n_delta, n_end = 4, 4, 40
+n_start, n_delta, n_end = 4, 8, 40
 # n_start, n_delta, n_end = 5, 5, 15
-m_start, m_delta, m_end = 1, 1, 30
+m_start, m_delta, m_end = 1, 1, 100
 p = 10 # radiam mode (p=0, 1, 2, 3,... p-1)
 
 r_start, r_end = 0.2, 0.9

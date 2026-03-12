@@ -28,10 +28,10 @@ A32 = k_parallel
 A33 = 1j * Dc
 
 A = np.block([[A11, A12, A13],
-              [A21, A22, A23],
-              [A31, A32, A33]])
-print(f"complete constructing A matrix. shape: {A.shape}")
+                [A21, A22, A23],
+                [A31, A32, A33]])
 
+print(f"complete constructing A matrix. shape: {A.shape}")
 
 # 서로 다른 n 모드들은 독립적이다. 따라서 n 모드별로 A를 블록 대각화할 수 있다. 이를 이용해서 고유값 문제를 더 작은 크기로 나눌 수 있다.
 # ks에서 n 모드별로 인덱스를 찾는다.
@@ -48,7 +48,7 @@ for n in n_values:
     print(f"{n_mode_indexes[n][0]}-{n_mode_indexes[n][-1]}", end=' ')
 print()  # newline
 
-F_blocked, omega_blocked = [], []
+F_blocked, eigenvalues_blocked = [], []
 for n in n_values:
     idx = n_mode_indexes[n] # n 모드에 해당하는 인덱스들을 가져온다.
     # A들에서 각각 블록 행렬을 추출해야 하므로, 총 9개의 인덱스 뭉치가 필요하다.
@@ -56,33 +56,30 @@ for n in n_values:
     A_block = A[np.ix_(idx_full, idx_full)]
 
     print(f"finding eigenvalues of n={n} block")
-    omega, F = np.linalg.eig(A_block)
+    eigenvalues, F = np.linalg.eig(A_block)
     F_blocked.append(F)
-    omega_blocked.append(omega)
+    eigenvalues_blocked.append(eigenvalues)
 
 """
-omega_blocked = [ [list of omega n1], [list of omega n2], ... ]
+eigenvalues_blocked = [ [list of eigenvalues n1], [list of eigenvalues n2], ... ]
 F_blocked = [ [list of F n1], [list of F n2], ... ]
 
-gammas = Im(omega_blocked) [ [list of gamma n1], [list of gamma n2], ... ]
-gammas_max = [max(gammas n1), max(gammas n2), ... ]
-gammas_idx = [index of max(gammas n1), index of max(gammas n2), ... ]
-ex) ks[gammas_idx[0]] -> n1 모드에서 가장 성장률이 큰 모드의 [n, m, p] 값
-
+gammas = [growth rate of most unstable mode n1, growth rate of most unstable mode n2, ... ]
+omegas = [frequency of most unstable mode n1, frequency of most unstable mode n2, ... ]
+most_unstable_mode_indexes = [index of max(gammas n1), index of max(gammas n2), ... ]
+ex) ks[most_unstable_mode_indexes[0]] -> n1 모드에서 가장 성장률이 큰 모드의 [n, m, p] 값
 """
-print(f"omega_blocked shape:")
-for i, omega in enumerate(omega_blocked):
-    print(f"omega_blocked[{i}] shape: {omega.shape}")
-gammas = np.zeros(len(n_values))
-gammas_idx = np.zeros_like(gammas, dtype=int)
-omegas = np.zeros_like(gammas)
-for omega, n in zip(omega_blocked, n_values):
-    idx = np.argmax(omega.imag)
-    gammas[i] = omega.imag[idx]
-    omegas[i] = omega.real[idx]
-    print(omega.shape)
-    print(idx)
-    gammas_idx[i] = n_mode_indexes[n][idx]
+
+most_unstable_mode_indexes = np.empty_like(n_values, dtype=int) # 각 n 모드에서 가장 성장률이 큰 모드의 인덱스를 저장할 리스트. shape (len(n_values),)
+gammas = np.empty_like(n_values) # growth rates of most unstable modes
+omegas = np.empty_like(n_values) # frequency of most unstable modes
+for i, eigenvalues in enumerate(eigenvalues_blocked):
+    print(f"eigenvalues_blocked[{i}] shape: {eigenvalues.shape}")
+    most_unstable_mode_index = np.argmax(eigenvalues.imag) # 가장 성장률이 큰 모드의 인덱스를 찾는다.
+
+    most_unstable_mode_indexes[i] = most_unstable_mode_index
+    gammas[i] = eigenvalues[most_unstable_mode_index].imag
+    omegas[i] = eigenvalues[most_unstable_mode_index].real
 
 # 각 모드 별 성장률 비교를 위해서, x축에 해당하는 값 ktheta_rho_i를 계산한다. 
 # k_theta_rho_i ~ nq/r * rhos0
@@ -91,10 +88,11 @@ q_val = 1.4 # q at r=0.5a
 r_val = 0.5 # 0.5a
 k_thetas_rho_i = n_values * q_val / r_val * param.rhos0
 
+# normalize
 gamma_factor = param.R_Lne / param.rmajor
 omega_factor = gamma_factor*4
-gammas = np.array(gammas) / gamma_factor
-omegas = np.array(omegas) / omega_factor
+gammas = gammas / gamma_factor 
+omegas = omegas / omega_factor
 
 # 결과를 플로팅한다.
 plt.figure(figsize=(10, 6))

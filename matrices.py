@@ -88,7 +88,7 @@ if basis=="bessel":
         dWdr[i] = dWdrk
         # d2Wdr2[i] = d2Wdr2k 
 
-    print(f"W, dWdr, d2Wdr2 computed. Shapes: {W.shape}, {dWdr.shape}, {d2Wdr2.shape}")
+    print(f"W, dWdr, d2Wdr2 computed. Shapes: {W.shape}")
 
 
 # 에르미트 함수 기저의 경우
@@ -172,7 +172,7 @@ for i, (n, m, p) in enumerate(ks):
     M[i, i] = n_hat[rho_mn_index] / Te_hat[rho_mn_index] - n_hat[rho_mn_index] * L[i, i]
     invM[i, i] = 1.0 / M[i, i] if M[i, i] != 0 else 0.0
 
-print(f"L, M, invM, J0, Dc matrices computed. Shapes: {L.shape}, {M.shape}, {invM.shape}, {J0.shape}, {Dc.shape}")
+print(f"L, M, invM, J0, Dc matrices computed. Shapes: {L.shape}")
 
 # 다음은 수치 적분이 필요한 grad_parallel(k_parallel), D_glf, 등등 행렬
 
@@ -273,8 +273,8 @@ for i, k1 in enumerate(ks):
             a[i, j] += a_minus_kk
             b[i, j] += b_minus_kk
 
-print(f"k_parallel, n_k_parallel, Ti_k_parallel, tau_k_parallel matrices computed. Shapes: {k_parallel.shape}, {n_k_parallel.shape}, {Ti_k_parallel.shape}, {tau_k_parallel.shape}")
-print(f"D_glf, Gp, Gn, GTi, a, b matrices computed. Shapes: {k_parallel.shape}, {D_glf.shape}, {Gp.shape}, {Gn.shape}, {GTi.shape}, {a.shape}, {b.shape}")
+print(f"k_parallel, n_k_parallel, Ti_k_parallel, tau_k_parallel matrices computed. Shapes: {k_parallel.shape}")
+print(f"D_glf, Gp, Gn, GTi, a, b matrices computed. Shapes: {k_parallel.shape}")
 
 def plot_matrices():
     # plot all matrices
