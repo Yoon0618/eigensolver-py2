@@ -108,3 +108,32 @@ plt.grid()
 plt.savefig(f"{param.image_dir}/{filename}.png", dpi=300)
 plt.show()
 
+# 모드를 시각화한다.
+# ~ plot_eigenmodes
+
+# 특정 n에 대해 가장 큰 성장률을 가지는 모드의 퍼텐셜을 시각화한다.
+W = matrices.W
+rs = param.rs
+thetas = np.linspace(-np.pi, np.pi, 100)
+for n in n_values:
+    idx = n_mode_indexes[n] # n 모드에 해당하는 k 인덱스들을 가져온다.
+    most_unstable_mode_index = most_unstable_mode_indexes[i] # n 모드에서 가장 성장률이 큰 모드의 인덱스를 가져온다.
+    F = F_blocked[i][:, most_unstable_mode_index] # 성장률이 가장 큰 모드의 계수들을 가져온다. shape (k_n,) F_blocked[i] = [phi1, phi2, ... phi_kn, Ti1, Ti2, ... Ti_kn, ne1, ne2, ... ne_kn]
+    Wk = W[idx] # n 모드에 해당하는 Wk 함수들을 가져온다. shape (k_n, r_num)
+    m = ks[idx, 1] # n 모드에 해당하는 m 값들을 가져온다. shape (K_n,)
+    exp_imtheta = np.exp(1j * m[:, None] * thetas[None, :]) # theta에 대한 exp(i*m*theta) 부분을 계산한다. shape (k_n, 100,)
+    # phi = sum_k F_k*W_k*exp(1j*m*theta) shape (256, 100)
+
+    phi = np.sum(F[:, None, None] * Wk[:, :, None] * exp_imtheta[None, None, :], axis=0) # F_k * W_k(r) * exp(i*m*theta) 부분을 계산한다. shape (256, 100)
+
+    x = rs * np.cos(thetas)
+    y = rs * np.sin(thetas)
+    
+    plt.figure(figsize=(8, 6))
+    plt.contourf(x, y, phi.real, levels=50, cmap='viridis')
+    plt.colorbar(label='Real part of potential')
+    plt.xlabel('x')
+    plt.ylabel('y')
+    plt.title(f"n={n} mode with max growth rate")
+    plt.savefig(f"{param.image_dir}/{filename}_n{n}_mode.png", dpi=300)
+    plt.show()
