@@ -266,7 +266,7 @@ for i, k1 in enumerate(ks):
             a_minus_kk = rho_s * 1/rmajor * np.sum(integrand_a_minus_1 - integrand_a_minus_2)
 
             # b_minus_kk' 계산
-            integrand_b_minus_1 = n_hat * (m1-1+d_lnn_dr) * W[i] * W[k_] * dr
+            integrand_b_minus_1 = n_hat * (m1-1-d_lnn_dr) * W[i] * W[k_] * dr
             integrand_b_minus_2 = n_hat * W[i] * dWdr[k_] * rdr
             b_minus_kk = rho_s * 1/rmajor * np.sum(integrand_b_minus_1 - integrand_b_minus_2)
 
