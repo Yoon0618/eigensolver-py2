@@ -5,7 +5,7 @@ import sympy as sp
 n_start, n_delta, n_end = 4, 4, 48
 # n_start, n_delta, n_end = 5, 5, 15
 m_start, m_delta, m_end = 1, 1, 50
-p = 5 # radiam mode (p=0, 1, 2, 3,... p-1)
+p = 10 # radiam mode (p=0, 1, 2, 3,... p-1)
 
 r_start, r_end = 0.2, 0.9
 r_num = 256
