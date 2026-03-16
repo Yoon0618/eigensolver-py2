@@ -2,109 +2,142 @@ import numpy as np
 from numpy import exp, cosh, tanh
 import sympy as sp
 
-n_start, n_delta, n_end = 4, 4, 48
-# n_start, n_delta, n_end = 5, 5, 15
-m_start, m_delta, m_end = 1, 1, 50
-p = 10 # radiam mode (p=0, 1, 2, 3,... p-1)
 
-r_start, r_end = 0.2, 0.9
-r_num = 256
-dr = 1/r_num
-rs = np.linspace(dr, 1.0, r_num)
+from dataclasses import dataclass
 
-rhos0 = 7.086026e-03
-a = 0.5 # minor radius
-# rho_s = rhos0/a
-rho_s = rhos0
-R = 1.3 # major radius
-rmajor = 1.3/0.48 # R/a, aspect ratio
-k_theta_rho_i_cut = 1.3
+@dataclass
+class Params:
+    n_start: int = 4
+    n_delta: int = 4
+    n_end: int = 48
+    m: int = 50
+    p: int = 10
 
-mu1 = 0.1
-mu2 = 0.0
+    basis: str = "bessel" # "bessel" or "hermite"
+    suffix: str = "" # file name suffix for saving images
 
-basis = "bessel" # "bessel" or "hermite"
-w_mn = 5*rho_s
+    r_start : float = 0.2
+    r_end : float = 0.9
+    r_num : int = 256
+    dr = 1/r_num
+    
+    rhos0 = 7.086026e-03
+    rho_s = rhos0 # rho_s = rhos0/a 인데 왜인지 코드에는 둘이 같게 되어있다...
 
-image_dir = "images" # directory to save images, relative to the current working directory
+    a = 0.5 # minor radius. 정확히는 0.48을 쓰는 것 같은데 편의상인지 0.5를 쓴다.
+    R = 1.3 # major radius
+    rmajor = 1.3/0.48 # R/a, aspect ratio
 
-# quilibrium profiles
+    k_theta_rho_i_cut = 1.3
 
-q_profile_type = "monotonic" # "monotonic" or "reversed"
+    mu1 = 0.1 # viscosity coefficient
+    mu2 = 0.0 # hyper-viscosity coefficient
 
-if q_profile_type == "monotonic":
+    w_mn = 5*rho_s # Hermite 기저 함수 폭
+
+    save_dir = "results" # directory to save results, relative to the current working directory
+
+    q_profile_type = "monotonic" # "monotonic" or "reversed"
     q0 = 0.854 # q(r=0) = q0
     q1 = 2.184 # q(r=1) = q1
-    q_profile = lambda r: q0+q1*r**2; 
 
-elif q_profile_type == "reversed":
-    raise NotImplementedError("reversed q profile is not implemented yet.")
+def build_profiles(param):
+    rs = np.linspace(param.dr, 1.0, param.r_num)
 
-R_Lne = sp.Float(1/0.45)
-R_Lte = sp.Float(6.92)
-R_Lti = sp.Float(6.92)
-Te_T0 = sp.Float(1.0)
+    # q profile type
+    if param.q_profile_type == "monotonic":
+        q_profile = lambda r: param.q0+param.q1*r**2; 
 
-# x = r/a (0~1)
-x = sp.Symbol("x", real=True)
+    elif param.q_profile_type == "reversed":
+        raise NotImplementedError("reversed q profile is not implemented yet.")
 
-# use exact rationals for 0.5 and 0.3 if you want
-xx = (x - sp.Rational(1, 2)) / sp.Float(0.3)
+    # ----------- equilibrium profiles based on cyclone case -----------
 
-n_hat_sp   = sp.exp(-0.3*R_Lne/rmajor*sp.tanh(xx))
-Te_hat_sp  = Te_T0*sp.exp(-0.3*R_Lte/rmajor*sp.tanh(xx))
-Ti_hat_sp  = sp.exp(-0.3*R_Lti/rmajor*sp.tanh(xx))
-pi_hat_sp  = n_hat_sp*Ti_hat_sp
-tau_sp     = Ti_hat_sp/Te_hat_sp
+    R_Lne = sp.Float(1/0.45)
+    R_Lte = sp.Float(6.92)
+    R_Lti = sp.Float(6.92)
+    Te_T0 = sp.Float(1.0)
 
-d_lnn_dr_sp    = sp.simplify(sp.diff(sp.log(n_hat_sp),  x))   # matches rln
-d_lnTi_dr_sp   = sp.simplify(sp.diff(sp.log(Ti_hat_sp), x))   # matches rlt
-d_lnTe_dr_sp   = sp.simplify(sp.diff(sp.log(Te_hat_sp), x))   # matches rlte
-d_lnpi_dr_sp   = sp.simplify(sp.diff(sp.log(pi_hat_sp), x))   # ~ rln+rlt
-d_lntau_dr_sp  = sp.simplify(sp.diff(sp.log(tau_sp),   x))    # rlt - rlte
+    # x = r/a (0~1)
+    x = sp.Symbol("x", real=True)
 
-dn_dr_sp   = sp.simplify(sp.diff(n_hat_sp,  x))
-dTi_dr_sp  = sp.simplify(sp.diff(Ti_hat_sp, x))
-dpi_dr_sp  = sp.simplify(sp.diff(pi_hat_sp, x))
+    # use exact rationals for 0.5 and 0.3 if you want
+    xx = (x - sp.Rational(1, 2)) / sp.Float(0.3)
 
-# ---- quick check at x=0.5 ----
-check = sp.simplify(d_lnn_dr_sp.subs(x, sp.Rational(1,2)))  # -> -R_Lne/rmajor
+    rmajor = sp.Float(param.rmajor)
+    n_hat_sp   = sp.exp(-0.3*R_Lne/rmajor*sp.tanh(xx))
+    Te_hat_sp  = Te_T0*sp.exp(-0.3*R_Lte/rmajor*sp.tanh(xx))
+    Ti_hat_sp  = sp.exp(-0.3*R_Lti/rmajor*sp.tanh(xx))
+    pi_hat_sp  = n_hat_sp*Ti_hat_sp
+    tau_sp     = Ti_hat_sp/Te_hat_sp
 
-# ---- lambdify (keyword is modules) ----
-n_hat_np      = sp.lambdify(x, n_hat_sp,     modules="numpy")
-Te_hat_np     = sp.lambdify(x, Te_hat_sp,    modules="numpy")
-Ti_hat_np     = sp.lambdify(x, Ti_hat_sp,    modules="numpy")
-pi_hat_np     = sp.lambdify(x, pi_hat_sp,    modules="numpy")
-tau_np        = sp.lambdify(x, tau_sp,       modules="numpy")
+    d_lnn_dr_sp    = sp.simplify(sp.diff(sp.log(n_hat_sp),  x))   # matches rln
+    d_lnTi_dr_sp   = sp.simplify(sp.diff(sp.log(Ti_hat_sp), x))   # matches rlt
+    d_lnTe_dr_sp   = sp.simplify(sp.diff(sp.log(Te_hat_sp), x))   # matches rlte
+    d_lnpi_dr_sp   = sp.simplify(sp.diff(sp.log(pi_hat_sp), x))   # ~ rln+rlt
+    d_lntau_dr_sp  = sp.simplify(sp.diff(sp.log(tau_sp),   x))    # rlt - rlte
 
-d_lnn_dr_np   = sp.lambdify(x, d_lnn_dr_sp,  modules="numpy")
-d_lnTi_dr_np  = sp.lambdify(x, d_lnTi_dr_sp, modules="numpy")
-d_lnTe_dr_np  = sp.lambdify(x, d_lnTe_dr_sp, modules="numpy")
-d_lnpi_dr_np  = sp.lambdify(x, d_lnpi_dr_sp, modules="numpy")
-d_lntau_dr_np = sp.lambdify(x, d_lntau_dr_sp,modules="numpy")
+    dn_dr_sp   = sp.simplify(sp.diff(n_hat_sp,  x))
+    dTi_dr_sp  = sp.simplify(sp.diff(Ti_hat_sp, x))
+    dpi_dr_sp  = sp.simplify(sp.diff(pi_hat_sp, x))
 
-dn_dr_np      = sp.lambdify(x, dn_dr_sp,     modules="numpy")
-dTi_dr_np     = sp.lambdify(x, dTi_dr_sp,    modules="numpy")
-dpi_dr_np     = sp.lambdify(x, dpi_dr_sp,    modules="numpy")
+    # ---- quick check at x=0.5 ----
+    check = sp.simplify(d_lnn_dr_sp.subs(x, sp.Rational(1,2)))  # -> -R_Lne/rmajor
 
-n_hat = n_hat_np(rs)
-Te_hat = Te_hat_np(rs)
-Ti_hat = Ti_hat_np(rs)
-pi_hat = pi_hat_np(rs)
-tau = tau_np(rs)
+    # ---- lambdify (keyword is modules) ----
+    n_hat_np      = sp.lambdify(x, n_hat_sp,     modules="numpy")
+    Te_hat_np     = sp.lambdify(x, Te_hat_sp,    modules="numpy")
+    Ti_hat_np     = sp.lambdify(x, Ti_hat_sp,    modules="numpy")
+    pi_hat_np     = sp.lambdify(x, pi_hat_sp,    modules="numpy")
+    tau_np        = sp.lambdify(x, tau_sp,       modules="numpy")
 
-dpdr = dpi_dr_np(rs)
-dndr = dn_dr_np(rs)
-dTidr = dTi_dr_np(rs)
+    d_lnn_dr_np   = sp.lambdify(x, d_lnn_dr_sp,  modules="numpy")
+    d_lnTi_dr_np  = sp.lambdify(x, d_lnTi_dr_sp, modules="numpy")
+    d_lnTe_dr_np  = sp.lambdify(x, d_lnTe_dr_sp, modules="numpy")
+    d_lnpi_dr_np  = sp.lambdify(x, d_lnpi_dr_sp, modules="numpy")
+    d_lntau_dr_np = sp.lambdify(x, d_lntau_dr_sp,modules="numpy")
 
-d_lnn_dr = d_lnn_dr_np(rs)
-d_lnTi_dr = d_lnTi_dr_np(rs)
-d_lnTe_dr = d_lnTe_dr_np(rs)
-d_lnpi_dr = d_lnpi_dr_np(rs)
-d_lntau_dr = d_lntau_dr_np(rs)
+    dn_dr_np      = sp.lambdify(x, dn_dr_sp,     modules="numpy")
+    dTi_dr_np     = sp.lambdify(x, dTi_dr_sp,    modules="numpy")
+    dpi_dr_np     = sp.lambdify(x, dpi_dr_sp,    modules="numpy")
 
+    n_hat = n_hat_np(rs)
+    Te_hat = Te_hat_np(rs)
+    Ti_hat = Ti_hat_np(rs)
+    pi_hat = pi_hat_np(rs)
+    tau = tau_np(rs)
+
+    dpi_dr = dpi_dr_np(rs)
+    dn_dr = dn_dr_np(rs)
+    dTi_dr = dTi_dr_np(rs)
+
+    d_lnn_dr = d_lnn_dr_np(rs)
+    d_lnTi_dr = d_lnTi_dr_np(rs)
+    d_lnTe_dr = d_lnTe_dr_np(rs)
+    d_lnpi_dr = d_lnpi_dr_np(rs)
+    d_lntau_dr = d_lntau_dr_np(rs)
+
+    return {
+        "rs": rs,
+        "q_profile": q_profile,
+        "R_Lne": R_Lne,
+        "n_hat": n_hat,
+        "Te_hat": Te_hat,
+        "Ti_hat": Ti_hat,
+        "pi_hat": pi_hat,
+        "tau": tau,
+        "d_lnn_dr": d_lnn_dr,
+        "d_lnTi_dr": d_lnTi_dr,
+        "d_lnTe_dr": d_lnTe_dr,
+        "d_lnpi_dr": d_lnpi_dr,
+        "d_lntau_dr": d_lntau_dr,
+        "dn_dr": dn_dr,
+        "dTi_dr": dTi_dr,
+        "dpi_dr": dpi_dr,
+    }
 
 """
+original MATLAB code for profiles:
 %-----------------------------------------------------------------------
 % Set equilibrium profiles : cyclone case used
 %-----------------------------------------------------------------------
