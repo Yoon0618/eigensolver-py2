@@ -6,13 +6,13 @@ import numpy as np
 import scipy.special as sp
 import matplotlib.pyplot as plt
 
-def construct_A_matrix(matrices):
-    # A 행렬을 조립한다.    
+def construct_A_matrix(mode_data, mat_data):
+    # A 행렬을 조립한다.
 
     # 미리 계산된 행렬들을 가져온다.
-    L, M, invM, J0, Dc = matrices["L"], matrices["M"], matrices["invM"], matrices["J0"], matrices["Dc"]
-    k_parallel, n_k_parallel, Ti_k_parallel, tau_k_parallel = matrices["k_parallel"], matrices["n_k_parallel"], matrices["Ti_k_parallel"], matrices["tau_k_parallel"]
-    D_glf, Gp, Gn, GTi, a, b = matrices["D_glf"], matrices["Gp"], matrices["Gn"], matrices["GTi"], matrices["a"], matrices["b"]
+    L, M, invM, J0, Dc = mat_data["L"], mat_data["M"], mat_data["invM"], mat_data["J0"], mat_data["Dc"]
+    k_parallel, n_k_parallel, Ti_k_parallel, tau_k_parallel = mat_data["k_parallel"], mat_data["n_k_parallel"], mat_data["Ti_k_parallel"], mat_data["tau_k_parallel"]
+    D_glf, Gp, Gn, GTi, a, b = mat_data["D_glf"], mat_data["Gp"], mat_data["Gn"], mat_data["GTi"], mat_data["a"], mat_data["b"]
  
     A11 = invM @ (-a + Gp @ L + Gn @ J0 + 1j*Dc @ M)
     A12 = -invM @ b
@@ -30,16 +30,9 @@ def construct_A_matrix(matrices):
 
     print(f"complete constructing A matrix. shape: {A.shape}")
 
-    return {
-        "A": A
-    }
-
-def solve_eigenvalue_problem(mode_data, matrix):
     # 서로 다른 n 모드들은 독립적이다. 따라서 n 모드별로 A를 블록 대각화할 수 있다. 이를 이용해서 고유값 문제를 더 작은 크기로 나눌 수 있다.
     # ks에서 n 모드별로 인덱스를 찾는다.
     ks = mode_data["ks"]
-    N = len(ks)
-    A = matrix["A"]
     
     n_values = np.unique(ks[:, 0])  # ks에서 n 모드들의 고유한 n 값들을 찾는다.
     n_mode_indexes = {n: np.where(ks[:, 0] == n)[0] for n in n_values}  # 각 n 값에 대해 ks에서 해당 n 모드들의 인덱스를 찾는다.
@@ -53,6 +46,18 @@ def solve_eigenvalue_problem(mode_data, matrix):
     for n in n_values:
         print(f"{n_mode_indexes[n][0]}-{n_mode_indexes[n][-1]}", end=' ')
     print()
+    
+    return {
+        "A": A,
+        "n_values": n_values,
+        "n_mode_indexes": n_mode_indexes,
+    }
+
+def solve_eigenvalue_problem(matrix):
+    n_values = matrix["n_values"]
+    n_mode_indexes = matrix["n_mode_indexes"]
+    A = matrix["A"]
+    N = A.shape[0] // 3  # A는 3N x 3N 행렬이므로, N은 A의 크기의 1/3이다.)
 
     # n 별로 A 블록에서 고유값 문제를 풀어서 성장률과 진동수를 구한다.
     F_blocked, eigenvalues_blocked = [], [] # 블록 별로 고유값과 고유벡터를 저장할 리스트
@@ -96,3 +101,7 @@ def solve_eigenvalue_problem(mode_data, matrix):
         "F_blocked": F_blocked,
         "eigenvalues_blocked": eigenvalues_blocked,
     }
+
+def solve_time_evolution(param, matrix):
+    # 시간 진화를 풀어서 모드의 성장률과 진동수를 구한다. 아직 구현되지 않았다.
+    raise NotImplementedError("time evolution method is not implemented yet.")

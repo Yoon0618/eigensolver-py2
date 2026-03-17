@@ -38,7 +38,6 @@ A = np.block([[A11, A12, A13],
               [A31, A32, A33]])
 print(f"complete constructing A matrix. shape: {A.shape}")
 
-
 # 서로 다른 n 모드들은 독립적이다. 따라서 n 모드별로 A를 블록 대각화할 수 있다. 이를 이용해서 고유값 문제를 더 작은 크기로 나눌 수 있다.
 # ks에서 n 모드별로 인덱스를 찾는다.
 n_values = np.unique(ks[:, 0])  # ks에서 n 모드들의 고유한 n 값들을 찾는다.
@@ -57,7 +56,6 @@ FFs = [] # 각 모드 계수들의 시간 진화를 저장할 리스트.
 
 # 초기값 F0는 아주 작은 섭동으로 주어진다.
 F0 = np.random.rand(3*N) * 1e-7 # 초기값 F0는 아주 작은 섭동으로 주어진다. shape (3N,)
-
 
 # 시간 진화 시뮬레이션
 for n in n_values:
@@ -81,7 +79,6 @@ for n in n_values:
         Fs[i+1] = F_next
 
     FFs.append(Fs)
-
 
 # 성장률 계산
 growth_rates = np.empty((len(n_values), len(ts))) # 각 모드의 시간별 성장률을 저장할 배열. shape (nn, T)

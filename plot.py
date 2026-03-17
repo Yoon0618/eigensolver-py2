@@ -78,6 +78,11 @@ def plot_eigenmodes(param, profiles, mode_data, mat_data, solve_data, save=True,
         elif show:
             plt.show()
 
+        break
+
+def plot_time_evolution():
+    return 0
+
 def plot_matrices(matrices, titles):
     """
     matrices: list of 2D numpy arrays to plot

@@ -16,13 +16,21 @@ ex) rs[mode_radius_indexes[k1]] = k1 모드의 반지름, 실수
 mode_q_values: shape (K,) float ndarray, 각 모드의 q 값. p 모드마다 같은 값이 반복된다.
 ex) mode_q_values[k1] = k1 모드의 q 값, 실수
 
-m_plus: shape (K,) int ndarray, 
-k의 모드가 (n, m, p)일 때, m_plus[k]는 (n, m+1, p) 모드의 인덱스. 만약 (n, m+1, p) 모드가 존재하지 않으면 -1.
-ex) m_plus[k1] = k2, where ks[k1] = (n, m, p) and ks[k2] = (n, m+1, p)
+m_plus: shape (K, p_max) int ndarray
+m_plus[k, :] = n은 같고 m2 = m1 + 1인 모든 p에 대한 인덱스들.
+해당 모드가 없으면 None 배열
 
-m_minus: shape (K,) int ndarray,
-k의 모드가 (n, m, p)일 때, m_minus[k]는 (n, m-1, p) 모드의 인덱스. 만약 (n, m-1, p) 모드가 존재하지 않으면 -1.
-ex) m_minus[k1] = k3, where ks[k1] = (n, m, p) and ks[k3] = (n, m-1, p)
+m_2plus: shape (K, p_max) int ndarray
+m_2plus[k, :] = n은 같고 m2 = m1 + 2인 모든 p에 대한 인덱스들.
+없으면 None 배열
+
+m_minus: shape (K, p_max) int ndarray
+m_minus[k, :] = n은 같고 m2 = m1 - 1인 모든 p에 대한 인덱스들.
+없으면 None 배열
+
+m_2minus: shape (K, p_max) int ndarray
+m_2minus[k, :] = n은 같고 m2 = m1 - 2인 모든 p에 대한 인덱스들.
+없으면 None 배열
 
 index_of_mode: shape (n_max+1, m_max+1, p_max) int ndarray,
 n,m은 0이 없어서 +1 shape를 가짐
@@ -39,175 +47,121 @@ from matplotlib import pyplot as plt
 import numpy as np
 # import parameters as param
 
-
-class SafeSameMN:
-    def __init__(self, data: np.ndarray):
-        self._data = data
-
-    @property
-    def shape(self):
-        return self._data.shape
-
-    def __array__(self, dtype=None):
-        return np.asarray(self._data, dtype=dtype)
-
-    def __repr__(self):
-        return repr(self._data)
-
-    def __getitem__(self, key):
-        if isinstance(key, tuple) and len(key) == 2:
-            i, p = key
-            if isinstance(i, (int, np.integer)) and isinstance(p, (int, np.integer)):
-                n_rows, n_cols = self._data.shape
-                i_int = int(i)
-                p_int = int(p)
-                if i_int < 0 or i_int >= n_rows or p_int < 0 or p_int >= n_cols:
-                    return -1
-                return int(self._data[i_int, p_int])
-        return self._data[key]
-
 def build_modes(param, profiles):
     # ns = [n_start, n_start + n_delta, ..., n_end]
     # ms = [1, 2, 3, ..., m]
-    ns = np.arange(param.n_start, param.n_end + 1, param.n_delta)
-    ms = np.arange(1, param.m + 1) 
-    p = param.p
+    ns = np.arange(param.n_start, param.n_end + 1, param.n_delta, dtype=int)
+    ms = np.arange(1, param.m + 1, dtype=int)
+    p_max = param.p
 
     rs = profiles["rs"]
-    # q_min, q_max = np.min(profiles["q_profile"](rs)), np.max(profiles["q_profile"](rs))
     q_min = profiles["q_profile"](param.r_start)
     q_max = profiles["q_profile"](param.r_end)
 
-    ks = [] # [ [n1, m1, p1], [n1, m1, p2], [n1, m2, p1], [n1, m2, p2], [n1, m1, p1], ...,[m, m, p] ], 형태로 모드의 인덱스를 저장할 리스트
-    #  n1 < n2, m1 < m2, p1 < p2
+    nm_modes_list = []              # [[n1, m1], [n1, m2], ...]
+    mode_radius_indexes_list = []   # length M
+    mode_q_values_list = []         # length M
 
-    mode_radius_indexes = [] # mode의 반지름에 가장 가까운 r의 인덱스를 저장할 리스트
-    mode_q_values = [] # mode의 q 값을 저장할 리스트
+    def find_index_of_nearest_r(r):
+        # searchsorted 기반으로 가장 가까운 index 선택
+        idx = np.searchsorted(rs, r)
+        if idx <= 0:
+            return 0
+        if idx >= len(rs):
+            return len(rs) - 1
+        return idx - 1 if abs(rs[idx - 1] - r) <= abs(rs[idx] - r) else idx
 
-    def find_index_of_nearst_r(r):
-        for i, r_test in enumerate(rs): # r_test이 r보다 커지는 순간이 r에 가장 가까운 rs의 원소가 된다.
-            if r_test >= r:
-                return i
+    for n in ns:
+        for m in ms:
+            q = m / n
 
-    for i, n in enumerate(ns):
-        for j, m in enumerate(ms):
-            q = m/n
-            
-            # q profile이 monotonic일 때와 reversed일 때를 구분해서 다룬다.
             if param.q_profile_type == "monotonic":
-                if q - param.q0 < 0: # 근이 없는 경우
+                if q <= param.q0:
                     continue
-                else:
-                    r = np.sqrt((q - param.q0) / param.q1) # 근이 있는 경우, q가 monotonic하므로 역함수로 r을 구할 수 있다.
-                    k_theta_rho_i = m/r*param.rhos0
 
-                # q 값이 q_min, q_max 범위 안에 있는지, k_theta_rho_i 조건을 만족하는 확인한다. 범위를 벗어나면 NaN으로 마스킹한다.
-                if q > q_min and q < q_max and k_theta_rho_i <= param.k_theta_rho_i_cut:
-                    mode_radius_indexes.append(find_index_of_nearst_r(r)) # mode의 반지름에 가장 가까운 r의 인덱스를 저장한다.
-                    mode_q_values.append(q)
+                r = np.sqrt((q - param.q0) / param.q1)
+                k_theta_rho_i = m / r * param.rhos0
 
-                    for p_ in range(param.p):
-                        ks.append((n, m, p_))
+                if q_min < q < q_max and k_theta_rho_i <= param.k_theta_rho_i_cut:
+                    nm_modes_list.append([n, m])
+                    mode_radius_indexes_list.append(find_index_of_nearest_r(r))
+                    mode_q_values_list.append(q)
 
             elif param.q_profile_type == "reversed":
                 raise NotImplementedError("reversed q profile is not implemented yet.")
 
-    ks = np.array(ks, dtype=int)   # shape (K, 3)
+    nm_modes = np.asarray(nm_modes_list, dtype=int)              # shape (M, 2)
+    mode_radius_nm = np.asarray(mode_radius_indexes_list, dtype=int)  # shape (M,)
+    mode_q_nm = np.asarray(mode_q_values_list, dtype=float)           # shape (M,)
+
+    if nm_modes.ndim != 2 or nm_modes.shape[1] != 2:
+        raise ValueError("nm_modes must have shape (M, 2).")
+
+    M = len(nm_modes)
+
+    # ks 구성: 각 (n,m)에 대해 p=0..p_max-1 반복
+    # ks shape = (M*p_max, 3)
+    ks = np.empty((M * p_max, 3), dtype=int)
+    ks[:, 0:2] = np.repeat(nm_modes, p_max, axis=0)
+    ks[:, 2] = np.tile(np.arange(p_max, dtype=int), M)
 
     print(f"ks ({ks.shape}): \n{ks}")
 
-    mode_radius_indexes = np.array(mode_radius_indexes, dtype=int) # shape (K/p,)
-    mode_radius_indexes = np.repeat(mode_radius_indexes, param.p) # shape (K,)
+    # mode_radius_indexes, mode_q_values도 p 방향으로 반복
+    mode_radius_indexes = np.repeat(mode_radius_nm, p_max)   # shape (K,)
+    mode_q_values = np.repeat(mode_q_nm, p_max)              # shape (K,)
 
-    mode_q_values = np.array(mode_q_values, dtype=float) # shape (K/p,)
-    mode_q_values = np.repeat(mode_q_values, param.p) # shape (K,)
+    # ---------- lookup tables ----------
+    n_arr = ks[:, 0]
+    m_arr = ks[:, 1]
+    p_arr = ks[:, 2]
 
+    if np.unique(ks, axis=0).shape[0] != len(ks):
+        raise ValueError("Duplicate (n, m, p) entries found in ks.")
 
-    # build_mode_maps(ks, p: int):
-    """
-    Build lookup tables for a set of modes.
+    n_max = int(n_arr.max())
+    m_max = int(m_arr.max())
+    K = len(ks)
 
-    Parameters
-    ----------
-    k : (K, 3) int ndarray
-        Each row must be (n, m, p).  (⚠️ 중요: (n,m,p) 순서)
-        Assume no duplicates.
-    p_max : int | None
-        If None, inferred as max(p)+1.
-
-    Returns
-    -------
-    m_plus  : (K,) int ndarray
-        m_plus[i] = j such that k[j] == (n_i, m_i+1, p_i), else -1.
-    m_minus : (K,) int ndarray
-        m_minus[i] = j such that k[j] == (n_i, m_i-1, p_i), else -1.
-    index_of_mode : (n_max+1, m_max+1, p_max) int ndarray
-        index_of_mode[n, m, p] = i if exists, else -1.
-    same_nm : SafeSameMN
-        same_nm[i, pp] = j such that k[j] == (n_i, m_i, pp), else -1.
-        If i or pp is out of bounds for integer indexing, returns -1 (no IndexError).
-    """
-    p_max = param.p
-    # --- validation ---
-    if ks.ndim != 2 or ks.shape[1] != 3:
-        raise ValueError("ks must have shape (K,3) with columns (n,m,p).")
-    if not np.issubdtype(ks.dtype, np.integer):
-        raise ValueError("ks must be an integer array.")
-
-    K = ks.shape[0]
-    if K == 0:
-        if p_max is None:
-            p_max = 0
-        m_plus = np.empty((0,), dtype=int)
-        m_minus = np.empty((0,), dtype=int)
-        index_of_mode = np.full((0, 0, p_max), -1, dtype=int)
-        same_nm = SafeSameMN(np.empty((0, p_max), dtype=int))
-        return m_plus, m_minus, index_of_mode, same_nm
-
-    # columns: (n,m,p)
-    n = ks[:, 0].astype(int, copy=False)
-    m = ks[:, 1].astype(int, copy=False)
-    p = ks[:, 2].astype(int, copy=False)
-
-    if p_max is None:
-        p_max = int(p.max()) + 1
-
-    # duplicates check (optional but strongly recommended)
-    if np.unique(ks, axis=0).shape[0] != K:
-        raise ValueError("Duplicate (n,m,p) entries found in ks.")
-
-    n_max = int(n.max())
-    m_max = int(m.max())
-
-    # --- index_of_mode[n, m, p] = i ---
+    # index_of_mode[n, m, p] = k, 없으면 -1
     index_of_mode = np.full((n_max + 1, m_max + 1, p_max), -1, dtype=int)
+    index_of_mode[n_arr, m_arr, p_arr] = np.arange(K, dtype=int)
 
-    valid_p = (0 <= p) & (p < p_max)
-    # n,m are assumed valid for the allocated bounds because n_max/m_max come from them.
-    index_of_mode[n[valid_p], m[valid_p], p[valid_p]] = np.arange(K, dtype=int)[valid_p]
+    # same_nm[k, pp] = (same n, same m, p=pp)의 index, 없으면 -1
+    same_nm = index_of_mode[n_arr, m_arr, :]   # shape (K, p_max)
 
-    # --- m_plus / m_minus (shift m, NOT n) ---
-    m_plus = np.full(K, -1, dtype=int)
-    m_minus = np.full(K, -1, dtype=int)
+    # m-shift lookup:
+    # out[i]는 "ks를 인덱싱하는 1D int ndarray"
+    # 없으면 빈 배열
+    def collect_m_shift(delta_m: int):
+        out = np.empty(len(ks), dtype=object)
 
-    valid_plus = valid_p & (m + 1 <= m_max)
-    m_plus[valid_plus] = index_of_mode[n[valid_plus], m[valid_plus] + 1, p[valid_plus]]
+        for i in range(len(ks)):
+            n1, m1, p1 = ks[i]
+            m_target = m1 + delta_m
 
-    valid_minus = valid_p & (m - 1 >= 0)
-    m_minus[valid_minus] = index_of_mode[n[valid_minus], m[valid_minus] - 1, p[valid_minus]]
+            mask = (ks[:, 0] == n1) & (ks[:, 1] == m_target)
 
-    # --- same_nm: same (n,m) with all p ---
-    # advanced indexing gives shape (K, p_max)
-    same_nm = SafeSameMN(index_of_mode[n, m, :])
+            # ks의 행이 아니라, ks의 인덱스를 저장
+            out[i] = np.where(mask)[0].astype(int)
+
+        return out
+
+    m_plus   = collect_m_shift(+1)
+    m_2plus  = collect_m_shift(+2)
+    m_minus  = collect_m_shift(-1)
+    m_2minus = collect_m_shift(-2)
 
     return {
         "ks": ks,
         "mode_radius_indexes": mode_radius_indexes,
         "mode_q_values": mode_q_values,
         "m_plus": m_plus,
+        "m_2plus": m_2plus,
         "m_minus": m_minus,
+        "m_2minus": m_2minus,
         "index_of_mode": index_of_mode,
-        "same_nm": same_nm
+        "same_nm": same_nm,
     }
 
 # def plot_modes():

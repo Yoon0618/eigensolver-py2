@@ -1,8 +1,6 @@
 import numpy as np
 from numpy import exp, cosh, tanh
 import sympy as sp
-
-
 from dataclasses import dataclass
 
 @dataclass
@@ -14,32 +12,34 @@ class Params:
     p: int = 10
 
     basis: str = "bessel" # "bessel" or "hermite"
+    method: str = "eigenproblem" # "eigenproblem" or "time_evolution"
+    dt: float = 1e-3 # time step for time evolution method
     suffix: str = "" # file name suffix for saving images
 
     r_start : float = 0.2
     r_end : float = 0.9
     r_num : int = 256
-    dr = 1/r_num
+    dr : float = 1/r_num
     
-    rhos0 = 7.086026e-03
-    rho_s = rhos0 # rho_s = rhos0/a 인데 왜인지 코드에는 둘이 같게 되어있다...
+    rhos0 : float = 7.086026e-03
+    rho_s : float = rhos0 # rho_s = rhos0/a 인데 왜인지 코드에는 둘이 같게 되어있다...
 
-    a = 0.5 # minor radius. 정확히는 0.48을 쓰는 것 같은데 편의상인지 0.5를 쓴다.
-    R = 1.3 # major radius
-    rmajor = 1.3/0.48 # R/a, aspect ratio
+    a : float = 0.5 # minor radius. 정확히는 0.48을 쓰는 것 같은데 편의상인지 0.5를 쓴다.
+    R : float = 1.3 # major radius
+    rmajor : float = 1.3/0.48 # R/a, aspect ratio
 
-    k_theta_rho_i_cut = 1.3
+    k_theta_rho_i_cut : float = 1.3
 
-    mu1 = 0.1 # viscosity coefficient
-    mu2 = 0.0 # hyper-viscosity coefficient
+    mu1 : float = 0.1 # viscosity coefficient
+    mu2 : float = 0.0 # hyper-viscosity coefficient
 
-    w_mn = 5*rho_s # Hermite 기저 함수 폭
+    w_mn : float = 5*rho_s # Hermite 기저 함수 폭
 
-    save_dir = "results" # directory to save results, relative to the current working directory
+    save_dir : str = "results" # directory to save results, relative to the current working directory
 
-    q_profile_type = "monotonic" # "monotonic" or "reversed"
-    q0 = 0.854 # q(r=0) = q0
-    q1 = 2.184 # q(r=1) = q1
+    q_profile_type : str = "monotonic" # "monotonic" or "reversed"
+    q0 : float = 0.854 # q(r=0) = q0
+    q1 : float = 2.184 # q(r=1) = q1
 
 def build_profiles(param):
     rs = np.linspace(param.dr, 1.0, param.r_num)
