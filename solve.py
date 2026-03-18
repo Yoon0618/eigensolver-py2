@@ -5,7 +5,9 @@ print("[solve.py]")
 import numpy as np
 import scipy.special as sp
 import matplotlib.pyplot as plt
+from utils import timed
 
+@timed
 def construct_A_matrix(mode_data, mat_data):
     # A 행렬을 조립한다.
 
@@ -28,7 +30,7 @@ def construct_A_matrix(mode_data, mat_data):
                   [A21, A22, A23],
                   [A31, A32, A33]])
 
-    print(f"complete constructing A matrix. shape: {A.shape}")
+    print(f"matrix A constructed. shape: {A.shape}")
 
     # 서로 다른 n 모드들은 독립적이다. 따라서 n 모드별로 A를 블록 대각화할 수 있다. 이를 이용해서 고유값 문제를 더 작은 크기로 나눌 수 있다.
     # ks에서 n 모드별로 인덱스를 찾는다.
@@ -53,11 +55,15 @@ def construct_A_matrix(mode_data, mat_data):
         "n_mode_indexes": n_mode_indexes,
     }
 
+@timed
 def solve_eigenvalue_problem(matrix):
     n_values = matrix["n_values"]
     n_mode_indexes = matrix["n_mode_indexes"]
     A = matrix["A"]
     N = A.shape[0] // 3  # A는 3N x 3N 행렬이므로, N은 A의 크기의 1/3이다.)
+
+    from scipy.sparse.linalg import eigs
+    from scipy.sparse import csr_matrix
 
     # n 별로 A 블록에서 고유값 문제를 풀어서 성장률과 진동수를 구한다.
     F_blocked, eigenvalues_blocked = [], [] # 블록 별로 고유값과 고유벡터를 저장할 리스트
@@ -68,9 +74,14 @@ def solve_eigenvalue_problem(matrix):
         A_block = A[np.ix_(idx_full, idx_full)]
 
         print(f"finding eigenvalues of n={n} block, shape: {A_block.shape}")
-        eigenvalues, F = np.linalg.eig(A_block)
+        # eigenvalues, F = np.linalg.eig(A_block)
+        A_block = csr_matrix(A_block)
+        eigenvalues, F = eigs(A_block, k=1, which='LI') # Scipy sparse eigenvalue solver를 사용해서 가장 큰 성장률을 가지는 6개의 모드의 고유값과 고유벡터를 구한다. A는 희소 행렬이므로, eigs 함수를 사용한다. which='LI' 옵션은 가장 큰 실수 부분을 가지는 고유값을 찾도록 지정한다.
+
         F_blocked.append(F)
         eigenvalues_blocked.append(eigenvalues)
+
+    print("eigenvalue problem solved for all n blocks.")
 
     """
     eigenvalues_blocked = [ [list of eigenvalues n1], [list of eigenvalues n2], ... ]

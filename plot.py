@@ -26,7 +26,7 @@ def plot_eigenvalues(param, profiles, solve_data, save=True, show=True):
     plt.plot(k_thetas_rho_i, omegas, 's-', label='Frequency/4') # 빨간색 점
     plt.xlabel(r'$k_{\theta} \rho_i$')
     plt.ylabel('Growth Rate, Frequency/4')
-    text = f"basis: {param.basis}\nparameters:\n {param.n_start} <= n <= {param.n_end}, $\Delta$n={param.n_delta}\n m={param.m},\n 0 <= p < {param.p}\n"
+    text = f"basis: {param.basis}\nparameters:\n {param.n_start} <= n <= {param.n_end}, $\\Delta$n={param.n_delta}\n 1 <= m <= {param.m}, $\\Delta$m=1\n 0 <= p < {param.p}\n"
     filename = f"n{param.n_start}_{param.n_end}_m{param.m}_p{param.p}_{param.basis}"
     plt.text(0.5, 0.5, text, transform=plt.gca().transAxes, fontsize=10, verticalalignment='center', horizontalalignment='center', bbox=dict(facecolor='white', alpha=0.8))
     plt.legend()
@@ -71,7 +71,7 @@ def plot_eigenmodes(param, profiles, mode_data, mat_data, solve_data, save=True,
         plt.xlabel('x')
         plt.ylabel('y')
         plt.title(f"n={n} mode with max growth rate")
-        text = f"basis: {param.basis}\nparameters:\n {param.n_start} <= n <= {param.n_end}, $\Delta$n={param.n_delta}\n 1 <= m <= {param.m}, $\Delta$m=1\n 0 <= p < {param.p}\n"
+        text = f"basis: {param.basis}\nparameters:\n {param.n_start} <= n <= {param.n_end}, $\\Delta$n={param.n_delta}\n 1 <= m <= {param.m}, $\\Delta$m=1\n 0 <= p < {param.p}\n"
         filename = f"n{param.n_start}_{param.n_end}_m{param.m}_p{param.p}_{param.basis}"
         if save:
             plt.savefig(f"{param.save_dir}/{filename}_n{n}_mode.png", dpi=300)
@@ -90,7 +90,7 @@ def plot_matrices(matrices, titles):
     """
     n = len(matrices)
     if n == 0:
-        return
+        return 0
 
     if len(titles) != n:
         raise ValueError("'titles' length must match 'matrices' length")
@@ -105,4 +105,48 @@ def plot_matrices(matrices, titles):
         plt.colorbar(im, ax=ax)
 
     plt.tight_layout()
+    plt.show()
+
+
+def plot_modes():
+    # plot rr vs q, (n,m) vs q, (r,n) vs q, (r,m) vs q
+    fig, ax = plt.subplots(2, 2, figsize=(12, 10))
+
+    # title
+    fig.suptitle(f'(n,m) modes: {np.count_nonzero(~np.isnan(qs))}', fontsize=16)
+
+    # plot r vs q
+    x = rr.flatten()
+    y = qs.flatten()
+
+    ax[0,0].scatter(x, y, c='blue', marker='o')
+    ax[0,0].set_xlabel('r/a')
+    ax[0,0].set_ylabel('q')
+    ax[0,0].set_title('r vs q for (n,m) modes')
+    ax[0,0].grid()
+
+    # plot (n,m) vs q
+    # ax.imshow(qs_, extent=(0, ns[-1], 0, ms[-1]), origin='lower', aspect='auto')
+    ax[0,1].scatter(np.tile(ns, len(ms)), np.repeat(ms, len(ns)), c=qs.flatten(), cmap='viridis', marker='o')
+    ax[0,1].set_xlabel('n')
+    ax[0,1].set_ylabel('m')
+    ax[0,1].set_title('q values for (n,m) modes')
+    ax[0,1].grid()
+
+    X, Y = np.meshgrid(ns, ms)
+    # plot (r,m) vs q
+    nn = X.flatten()
+    mm = Y.flatten()
+    ax[1,0].scatter(rr.flatten(), mm, c=qs.flatten(), cmap='viridis', marker='o')
+    ax[1,0].set_xlabel('r/a')
+    ax[1,0].set_ylabel('m')
+    ax[1,0].set_title('rho values for (n,m) modes')
+    ax[1,0].grid()
+
+    # plot (r,n) vs q
+    ax[1,1].scatter(rr.flatten(), nn, c=qs.flatten(), cmap='viridis', marker='o')
+    ax[1,1].set_xlabel('r/a')
+    ax[1,1].set_ylabel('n')
+    ax[1,1].set_title('rho values for (n,m) modes')
+    ax[1,1].grid()
     plt.show()

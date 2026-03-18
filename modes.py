@@ -45,8 +45,9 @@ ex) same_nm[k1, pp] = k2, where ks[k1] = (n, m, p) and ks[k2] = (n, m, pp)
 # %%
 from matplotlib import pyplot as plt
 import numpy as np
-# import parameters as param
+from utils import timed
 
+@timed
 def build_modes(param, profiles):
     # ns = [n_start, n_start + n_delta, ..., n_end]
     # ms = [1, 2, 3, ..., m]
@@ -163,49 +164,3 @@ def build_modes(param, profiles):
         "index_of_mode": index_of_mode,
         "same_nm": same_nm,
     }
-
-# def plot_modes():
-#     # plot rr vs q, (n,m) vs q, (r,n) vs q, (r,m) vs q
-#     fig, ax = plt.subplots(2, 2, figsize=(12, 10))
-
-#     # title
-#     fig.suptitle(f'(n,m) modes: {np.count_nonzero(~np.isnan(qs))}', fontsize=16)
-
-#     # plot r vs q
-#     x = rr.flatten()
-#     y = qs.flatten()
-
-#     ax[0,0].scatter(x, y, c='blue', marker='o')
-#     ax[0,0].set_xlabel('r/a')
-#     ax[0,0].set_ylabel('q')
-#     ax[0,0].set_title('r vs q for (n,m) modes')
-#     ax[0,0].grid()
-
-#     # plot (n,m) vs q
-#     # ax.imshow(qs_, extent=(0, ns[-1], 0, ms[-1]), origin='lower', aspect='auto')
-#     ax[0,1].scatter(np.tile(ns, len(ms)), np.repeat(ms, len(ns)), c=qs.flatten(), cmap='viridis', marker='o')
-#     ax[0,1].set_xlabel('n')
-#     ax[0,1].set_ylabel('m')
-#     ax[0,1].set_title('q values for (n,m) modes')
-#     ax[0,1].grid()
-
-#     X, Y = np.meshgrid(ns, ms)
-#     # plot (r,m) vs q
-#     nn = X.flatten()
-#     mm = Y.flatten()
-#     ax[1,0].scatter(rr.flatten(), mm, c=qs.flatten(), cmap='viridis', marker='o')
-#     ax[1,0].set_xlabel('r/a')
-#     ax[1,0].set_ylabel('m')
-#     ax[1,0].set_title('rho values for (n,m) modes')
-#     ax[1,0].grid()
-
-#     # plot (r,n) vs q
-#     ax[1,1].scatter(rr.flatten(), nn, c=qs.flatten(), cmap='viridis', marker='o')
-#     ax[1,1].set_xlabel('r/a')
-#     ax[1,1].set_ylabel('n')
-#     ax[1,1].set_title('rho values for (n,m) modes')
-#     ax[1,1].grid()
-#     plt.show()
-
-# if __name__ == "__main__":
-#     plot_modes()

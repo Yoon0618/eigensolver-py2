@@ -2,14 +2,12 @@
 # 행렬 A를 구성하는 각각의 연산자 행렬을 계산한다.
 print("[matrices.py]")
 
-# %% import
 import numpy as np
-# import parameters as param
-# import modes
-import plot
 import scipy.special as sp
 import matplotlib.pyplot as plt
+from utils import timed
 
+@timed
 def build_matrices(param, profiles, mode_data):
     # mode data 불러오기
     ks = mode_data["ks"]
@@ -369,8 +367,7 @@ def build_matrices(param, profiles, mode_data):
                 a[i, j] += a_minus_kk
                 b[i, j] += b_minus_kk
 
-    print(f"k_parallel matrices computed. Shapes: {k_parallel.shape}")
-    print(f"D_glf, Gp, Gn, GTi, a, b matrices computed. Shapes: {k_parallel.shape}")
+    print(f"k_parallel, D_glf, Gp, Gn, GTi, a, b matrices computed. Shapes: {k_parallel.shape}")
 
     return {
         "W": W,
