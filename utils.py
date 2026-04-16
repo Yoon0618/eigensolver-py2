@@ -20,7 +20,6 @@ def make_parser():
 
     return parser
 
-
 def parse_params():
     parser = make_parser()
     args = parser.parse_args()
@@ -55,12 +54,22 @@ def save_result(param, profiles, mode_data, mat_data, solve_data):
         json.dump(param.__dict__, f, indent=4)
 
     # save raw data as npz
-    np.savez_compressed(f"{save_path}.npz", solve_data=solve_data)
-
+    # np.savez_compressed(
+    # f"{save_path}.npz",
+    # **{f"{k}": v for k, v in solve_data.items()}
+    # )
+    
     # save plots
-    from plot import plot_eigenvalues, plot_eigenmodes
-    plot_eigenvalues(param, profiles, solve_data, save=True, show=True)
+    if param.method == "eigenproblem":
+        pass
+    
+    elif param.method == "time_evolution":
+        from plot import plot_time_evolution
+        plot_time_evolution(param, profiles, solve_data, save=True, show=True)
+
+    from plot import plot_eigenmodes, plot_eigenvalues
     plot_eigenmodes(param, profiles, mode_data, mat_data, solve_data, save=True, show=True)
+    plot_eigenvalues(param, profiles, solve_data, save=True, show=True)
 
     # save note.txt for 약간의 메모 남기기
     memo_context = input("메모를 입력하세요 (엔터로 종료): ")

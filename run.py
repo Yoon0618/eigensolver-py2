@@ -20,12 +20,7 @@ def main():
     from solve import construct_A_matrix
     A_matrix = construct_A_matrix(mode_data, mat_data)
 
-    # # sparse check
-    # import numpy as np
-    # print(f"A matrix shape: {A_matrix['A'].shape}, nnz: {np.count_nonzero(A_matrix['A'])}, density: {np.count_nonzero(A_matrix['A'])/A_matrix['A'].size:.2e}")
-    # from plot import plot_matrices
-    # plot_matrices([A_matrix["A"].real, A_matrix["A"].imag], ["Real part of A", "Imaginary part of A"])
-
+    
     # solve
     # method 1. eigenvalue problem
     if param.method == "eigenproblem":

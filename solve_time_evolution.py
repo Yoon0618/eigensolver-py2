@@ -30,12 +30,12 @@ A31 = k_parallel + tau_k_parallel
 A32 = k_parallel
 A33 = 1j * Dc
 
-# A = -1j*np.block([[A11, A12, A13],
-            #   [A21, A22, A23],
-            #   [A31, A32, A33]])
-A = np.block([[A11, A12, A13],
+A = -1j*np.block([[A11, A12, A13],
               [A21, A22, A23],
-              [A31, A32, A33]])
+              [A31, A32, A33]]) # ddt = - i omega 이므로
+# A = np.block([[A11, A12, A13],
+#               [A21, A22, A23],
+#               [A31, A32, A33]])
 print(f"complete constructing A matrix. shape: {A.shape}")
 
 # 서로 다른 n 모드들은 독립적이다. 따라서 n 모드별로 A를 블록 대각화할 수 있다. 이를 이용해서 고유값 문제를 더 작은 크기로 나눌 수 있다.
@@ -54,8 +54,7 @@ ts = np.arange(0, 0.2+dt, dt) # 정규화된 시간을 저장한다.
 FFs = [] # 각 모드 계수들의 시간 진화를 저장할 리스트.
 # 모드마다 어레이 크기가 달라 넘파이 어레이 Fs를 파이썬 리스트로 담는다.
 
-# 초기값 F0는 아주 작은 섭동으로 주어진다.
-F0 = np.random.rand(3*N) * 1e-7 # 초기값 F0는 아주 작은 섭동으로 주어진다. shape (3N,)
+F0 = np.ones(shape=(3*N,), dtype=np.float64) * 1e-7 # 초기값 F0는 아주 작은 섭동으로 주어진다. shape (3N,)
 
 # 시간 진화 시뮬레이션
 for n in n_values:
@@ -81,26 +80,9 @@ for n in n_values:
     FFs.append(Fs)
 
 # 성장률 계산
-growth_rates = np.empty((len(n_values), len(ts))) # 각 모드의 시간별 성장률을 저장할 배열. shape (nn, T)
-for i, (Fs, n) in enumerate(zip(FFs, n_values)):
-    # 성장률은 F'/F로 계산한다. F는 시간에 따라 변하는 모드 계수들의 어레이이다. shape (T, K_n)
-    F_norm = np.linalg.norm(Fs, axis=1) # 각 시간에 대한 F의 노름을 계산한다. shape (T,)
-    dF_dt = np.gradient(F_norm, ts) # F의 시간에 대한 미분을 계산한다. shape (T,)
-    growth_rates[i] = dF_dt / np.maximum(F_norm, 1e-30) # 성장률을 계산하고 저장 shape (T,)
-
-# 결과 플로팅
-plt.figure(figsize=(10, 6))
-for i, n in enumerate(n_values):
-    plt.plot(ts, growth_rates[i], label=f'n={n}')
-plt.xlabel('Normalized Time')
-plt.ylabel('Growth Rate (F\'/F)')
-plt.title('Growth Rate vs Time for Different n Modes')
-# 파라미터 텍스트로 추가
-# 시간 스텝과 시뮬레이션 시간, 초기값 크기 등을 텍스트로 추가한다.
-text1 = f"basis: {param.basis}\nparameters:\n {param.n_start} <= n <= {param.n_end}, $\Delta$n={param.n_delta}\n {param.m_start} <= m <= {param.m_end}, $\Delta$m={param.m_delta}\n 0 <= p < {param.p}\n"
-text2 = f"dt={dt}, total time={ts[-1]}, initial perturbation={F0.max():.1e}"
-plt.text(0.05, 0.95, text1 + text2, transform=plt.gca().transAxes, fontsize=10, verticalalignment='top')
-plt.legend()
-plt.grid()
-plt.savefig(f"{param.image_dir}/growth_rate_time_evolution.png", dpi=300)
-plt.show()
+    growth_rates = np.empty((len(n_values), len(ts))) # 각 모드의 시간별 성장률을 저장할 배열. shape (nn, T)
+    for i, (Fs, n) in enumerate(zip(FFs, n_values)):
+        # 성장률은 F'/F로 계산한다. F는 시간에 따라 변하는 모드 계수들의 어레이이다. shape (T, K_n)
+        F_norm = np.linalg.norm(Fs, axis=1) # 각 시간에 대한 F의 노름을 계산한다. shape (T,)
+        dF_dt = np.gradient(F_norm, ts) # F의 시간에 대한 미분을 계산한다. shape (T,)
+        growth_rates[i] = dF_dt / np.maximum(F_norm, 1e-30) # 성장률을 계산하고 저장 shape (T,)

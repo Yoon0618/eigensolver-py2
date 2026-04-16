@@ -32,6 +32,22 @@ m_2minus: shape (K, p_max) int ndarray
 m_2minus[k, :] = n은 같고 m2 = m1 - 2인 모든 p에 대한 인덱스들.
 없으면 None 배열
 
+p_minus: shape (K,) int ndarray
+p_minus[k]는 n, m은 같고 p2 = p1 - 1인 모드의 인덱스.
+없으면 -1
+
+p_plus: shape (K,) int ndarray
+p_plus[k]는 n, m은 같고 p2 = p1 + 1인 모드의 인덱스.
+없으면 -1
+
+p_2minus: shape (K,) int ndarray
+p_2minus[k]는 n, m은 같고 p2 = p1 - 2인 모드의 인덱스.
+없으면 -1
+
+p_2plus: shape (K,) int ndarray
+p_2plus[k]는 n, m은 같고 p2 = p1 + 2인 모드의 인덱스.
+없으면 -1
+
 index_of_mode: shape (n_max+1, m_max+1, p_max) int ndarray,
 n,m은 0이 없어서 +1 shape를 가짐
 k의 모드가 (n, m, p)일 때, index_of_mode[n, m, p]는 k 모드의 인덱스. 만약 (n, m, p) 모드가 존재하지 않으면 -1.
@@ -153,6 +169,26 @@ def build_modes(param, profiles):
     m_minus  = collect_m_shift(-1)
     m_2minus = collect_m_shift(-2)
 
+    # p-shift lookup:
+    # out[i]는 "ks를 인덱싱하는 단일 int index"
+    # 없으면 -1
+    def collect_p_shift(delta_p: int):
+        out = np.full(len(ks), -1, dtype=int)
+
+        for i in range(len(ks)):
+            n1, m1, p1 = ks[i]
+            p_target = p1 + delta_p
+
+            if 0 <= p_target < p_max:
+                out[i] = index_of_mode[n1, m1, p_target]
+
+        return out
+
+    p_minus = collect_p_shift(-1)
+    p_plus = collect_p_shift(+1)
+    p_2minus = collect_p_shift(-2)
+    p_2plus = collect_p_shift(+2)
+
     return {
         "ks": ks,
         "mode_radius_indexes": mode_radius_indexes,
@@ -161,6 +197,10 @@ def build_modes(param, profiles):
         "m_2plus": m_2plus,
         "m_minus": m_minus,
         "m_2minus": m_2minus,
+        "p_minus": p_minus,
+        "p_plus": p_plus,
+        "p_2minus": p_2minus,
+        "p_2plus": p_2plus,
         "index_of_mode": index_of_mode,
         "same_nm": same_nm,
     }

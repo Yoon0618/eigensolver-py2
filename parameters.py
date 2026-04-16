@@ -6,14 +6,17 @@ from dataclasses import dataclass
 @dataclass
 class Params:
     n_start: int = 4
-    n_delta: int = 4
+    n_delta: int = 10
     n_end: int = 48
     m: int = 50
     p: int = 10
 
-    basis: str = "bessel" # "bessel" or "hermite"
-    method: str = "eigenproblem" # "eigenproblem" or "time_evolution"
+    basis: str = "hermite" # "bessel" or "hermite"
+    method: str = "time_evolution" # "eigenproblem" or "time_evolution"
     dt: float = 1e-3 # time step for time evolution method
+    T: float = 10.0 # total simulation time for time evolution method
+    F0: float = 1e-9 # initial perturbation amplitude for time evolution method
+
     suffix: str = "" # file name suffix for saving images
 
     r_start : float = 0.2
