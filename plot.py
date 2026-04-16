@@ -62,7 +62,7 @@ def plot_eigenmodes(param, profiles, mode_data, mat_data, solve_data, save=True,
 
     for i, n in enumerate(n_values):
         idx = n_mode_indexes[n] # n 모드에 해당하는 k 인덱스들을 가져온다.
-        if most_unstable_mode_indexes is 0: # time evolution 방법에서는 각 n별로 계수 F들만 구할 수 있으므로,
+        if most_unstable_mode_indexes is None: # time evolution 방법에서는 각 n별로 계수 F들만 구할 수 있으므로,
             F = F_blocked[i]
         else: # eigenproblem 방법에서는 각 n별로 여러 모드가 나올 수 있는데, 그 중에서 가장 성장률이 큰 모드의 계수 F를 가져온다.
             most_unstable_mode_index = most_unstable_mode_indexes[i] # n 모드에서 가장 성장률이 큰 모드의 인덱스를 가져온다.
@@ -98,29 +98,29 @@ def plot_eigenmodes(param, profiles, mode_data, mat_data, solve_data, save=True,
 
 
 def plot_time_evolution(param, profiles, solve_data, save=True, show=True):
-    n_values = solve_data["n_values"]
-    ts = solve_data["ts"]
-    gammas = solve_data["gammas"]
+    # n_values = solve_data["n_values"]
+    # ts = solve_data["ts"]
+    # gammas = solve_data["gammas"]
 
-    # 결과 플로팅
-    plt.figure(figsize=(10, 6))
-    for i, n in enumerate(n_values):
-        plt.plot(ts, gammas[i], label=f'n={n}')
-    plt.xlabel('Normalized Time')
-    plt.ylabel('Growth Rate (F\'/F)')
-    plt.title('Growth Rate vs Time for Different n Modes')
-    # 파라미터 텍스트로 추가
-    # 시간 스텝과 시뮬레이션 시간, 초기값 크기 등을 텍스트로 추가한다.
-    text1 = f"basis: {param.basis}\nparameters:\n {param.n_start} <= n <= {param.n_end}, $\Delta$n={param.n_delta}\n 1 <= m <= {param.m}, $\Delta$m=1\n 0 <= p < {param.p}\n"
-    text2 = f"dt={param.dt}, total time={param.T}, initial perturbation={param.F0}"
-    plt.text(0.05, 0.95, text1 + text2, transform=plt.gca().transAxes, fontsize=10, verticalalignment='top')
-    plt.legend()
-    plt.grid()
+    # # 결과 플로팅
+    # plt.figure(figsize=(10, 6))
+    # for i, n in enumerate(n_values):
+    #     plt.plot(ts, gammas[i], label=f'n={n}')
+    # plt.xlabel('Normalized Time')
+    # plt.ylabel('Growth Rate (F\'/F)')
+    # plt.title('Growth Rate vs Time for Different n Modes')
+    # # 파라미터 텍스트로 추가
+    # # 시간 스텝과 시뮬레이션 시간, 초기값 크기 등을 텍스트로 추가한다.
+    # text1 = f"basis: {param.basis}\nparameters:\n {param.n_start} <= n <= {param.n_end}, $\Delta$n={param.n_delta}\n 1 <= m <= {param.m}, $\Delta$m=1\n 0 <= p < {param.p}\n"
+    # text2 = f"dt={param.dt}, total time={param.T}, initial perturbation={param.F0}"
+    # plt.text(0.05, 0.95, text1 + text2, transform=plt.gca().transAxes, fontsize=10, verticalalignment='top')
+    # plt.legend()
+    # plt.grid()
 
-    if save:
-        plt.savefig(f"{param.save_dir}/{param.basis}_growth_rates.png", dpi=300)
-    elif show:
-        plt.show()
+    # if save:
+    #     plt.savefig(f"{param.save_dir}/{param.basis}_growth_rates.png", dpi=300)
+    # elif show:
+    #     plt.show()
     return 0
 
 def plot_matrices(matrices, titles):

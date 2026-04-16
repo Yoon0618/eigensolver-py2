@@ -171,12 +171,17 @@ def solve_time_evolution(param, matrix):
         F_blocked.append(Fs_block[-1])  # 마지막 시간 스텝의 모드 계수를 저장
     print("time evolution simulation completed for all n blocks.")
 
+    
+
+    # 충분히 수렴한 후의 성장률을 보기 위해 0.8T ~ T 구간에서 ln(||F||)에 선형 회귀를 적용해서 성장률을 계산한다. 
+    # 진동수는 F의 시간 변화에서 계산한다.
+
     # 성장률 계산
     gammas = np.empty(len(n_values))
     omegas = np.empty(len(n_values))
     
     fit_info = []
-
+    
     for i, F in enumerate(Fs):   # F shape: (t, dof)
         a = np.linalg.norm(F, axis=1)
         y = np.log(np.maximum(a, 1e-300))
@@ -214,10 +219,11 @@ def solve_time_evolution(param, matrix):
 
     return {
         "gammas": gammas,
+        "omegas": omegas,
         "ts": ts,
         "n_values": n_values,
         "n_mode_indexes": n_mode_indexes,
         "Fs": Fs,
         "F_blocked": F_blocked,
-        "most_unstable_mode_indexes": 0,
+        "most_unstable_mode_indexes": None,
     }
