@@ -117,11 +117,7 @@ def build_matrices(param, profiles, mode_data):
             x = (rs - rs[mode_radius_indexes[i]])/w_mn
             v_p = 2**(p/2) * np.sqrt(sp.gamma(p+1)) * np.pi**0.25
             Wk = 1.0/(np.sqrt(2 * rs * w_mn) * v_p) * sp.eval_hermite(p, x) * np.exp(-0.5 * x*x)
-            
-            # normalize
-            norm = np.sum(Wk * Wk * rdr)
-
-            W[i] = Wk/np.sqrt(norm)
+            W[i] = Wk
 
         # dWdr 계산
         for i, (n, m, p) in enumerate(ks):
@@ -137,6 +133,12 @@ def build_matrices(param, profiles, mode_data):
 
             dWdrk = 1/w_mn * ( np.sqrt(p/2) * Wk_p_minus - w_mn/(2*rs) * W[i] - np.sqrt((p+1)*0.5) * Wk_p_plus )
             dWdr[i] = dWdrk
+
+        # normalize W, dWdr
+        for i in range(len(ks)):
+            norm = np.sum(W[i] * W[i] * rdr)
+            W[i] /= np.sqrt(norm)
+            dWdr[i] /= np.sqrt(norm)
 
         # Laplacian
         for i, (n, m, p) in enumerate(ks):
@@ -165,12 +167,11 @@ def build_matrices(param, profiles, mode_data):
                 M[i, j] += - n_hat[rho_mn_index] *L[i, j]
 
         # Laplacian-like 행렬들 계산
-
         I = np.eye(L.shape[0]) # identity matrix
-        J0 = np.linalg.solve(I - 0.5*L, I) # AX = I -> X = inv(A)
+        J0 = np.linalg.solve(I - param.gyroaverage*0.5*L, I) # AX = I -> X = inv(A)
         Dc = param.mu1 * L - param.mu2 * L @ L # or mu1 * L - mu2 * diag(ky^4) 매트랩 코드는 이렇게 구현함.
-        # M = I * n_hat/Te_hat - n_hat * L
-        invM = np.linalg.solve(M, I)
+        Dc = param.damping_c**Dc
+        invM = np.linalg.solve(M, I) # M = I * n_hat/Te_hat - n_hat * L
 
 
     # %% 다음은 수치 적분이 필요한 grad_parallel(k_parallel), D_glf, 등등 행렬
@@ -376,6 +377,8 @@ def build_matrices(param, profiles, mode_data):
 
                 a[i, j] += a_minus_kk
                 b[i, j] += b_minus_kk
+
+    D_glf = param.damping_glf*D_glf
 
     print(f"k_parallel, D_glf, Gp, Gn, GTi, a, b matrices computed. Shapes: {k_parallel.shape}")
 

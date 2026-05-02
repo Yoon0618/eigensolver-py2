@@ -5,7 +5,7 @@ print("[solve.py]")
 import numpy as np
 import scipy.special as sp
 import matplotlib.pyplot as plt
-from utils import timed
+from utils import timed, downsample
 
 @timed
 def construct_A_matrix(mode_data, mat_data):
@@ -181,7 +181,7 @@ def solve_time_evolution(param, matrix):
     omegas = np.empty(len(n_values))
     
     fit_info = []
-    
+
     for i, F in enumerate(Fs):   # F shape: (t, dof)
         a = np.linalg.norm(F, axis=1)
         y = np.log(np.maximum(a, 1e-300))
@@ -191,31 +191,19 @@ def solve_time_evolution(param, matrix):
 
         slope, intercept = np.polyfit(ts[i0:i1], y[i0:i1], 1)
         gammas[i] = slope
-        fit_info.append((i0, i1, slope, intercept))
+        fit_info.append({
+            "i0": i0,
+            "i1": i1,
+            "slope": slope,
+            "intercept": intercept
+        })
 
         dF_dt = np.gradient(F, ts, axis=0)
         den = np.maximum(np.sum(np.abs(F)**2, axis=1), 1e-300)
         alpha = np.sum(np.conj(F) * dF_dt, axis=1) / den
         omegas[i] = -np.mean(alpha.imag[i0:i1])
 
-    # 제대로 작동하는지 확인하기 위해을 여기서 바로 plot해보기
-    # 시간에 따른 ln(a)와 회귀선을 플로팅한다.
-    # 회귀에 포함되는 영역을 나타낸다.
-    plt.figure()
-    for i, n in enumerate(n_values):
-        i0, i1, slope, intercept = fit_info[i]
-        a = np.linalg.norm(Fs[i], axis=1)
-        y = np.log(np.maximum(a, 1e-300))
-
-        plt.plot(ts, y, label=f"n={n}")
-        plt.plot(ts[i0:i1], slope * ts[i0:i1] + intercept, "--")
-    plt.xlabel("time")
-    plt.ylabel("ln(||F||)")
-    plt.title("Time evolution of mode amplitude and linear fit")
-    plt.legend()
-    plt.grid()
-    plt.savefig(f"{param.save_dir}/time_evolution_gamma{param.suffix}.png")
-    plt.show()
+    
 
     return {
         "gammas": gammas,
@@ -225,5 +213,6 @@ def solve_time_evolution(param, matrix):
         "n_mode_indexes": n_mode_indexes,
         "Fs": Fs,
         "F_blocked": F_blocked,
+        "fit_info": fit_info,
         "most_unstable_mode_indexes": None,
     }

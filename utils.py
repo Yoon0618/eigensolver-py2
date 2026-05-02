@@ -88,3 +88,11 @@ def timed(func):
         print(f"[TIMER] {func.__name__:<24} {t1 - t0:10.6f} s")
         return out
     return wrapper
+
+def downsample(x, l):
+    x = np.asarray(x, dtype=float)
+    L = len(x)
+    edges = np.linspace(0, L, l + 1)
+    csum = np.concatenate(([0.0], np.cumsum(x)))
+    integral = np.interp(edges, np.arange(L + 1), csum)
+    return np.diff(integral) / np.diff(edges)

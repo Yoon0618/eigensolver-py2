@@ -6,14 +6,14 @@ from dataclasses import dataclass
 @dataclass
 class Params:
     n_start: int = 4
-    n_delta: int = 10
+    n_delta: int = 20
     n_end: int = 48
     m: int = 50
     p: int = 10
 
     basis: str = "hermite" # "bessel" or "hermite"
     method: str = "time_evolution" # "eigenproblem" or "time_evolution"
-    dt: float = 1e-3 # time step for time evolution method
+    dt: float = 1e-5 # time step for time evolution method
     T: float = 10.0 # total simulation time for time evolution method
     F0: float = 1e-9 # initial perturbation amplitude for time evolution method
 
@@ -26,15 +26,18 @@ class Params:
     
     rhos0 : float = 7.086026e-03
     rho_s : float = rhos0 # rho_s = rhos0/a 인데 왜인지 코드에는 둘이 같게 되어있다...
+    k_theta_rho_i_cut : float = 1.3
 
     a : float = 0.5 # minor radius. 정확히는 0.48을 쓰는 것 같은데 편의상인지 0.5를 쓴다.
     R : float = 1.3 # major radius
     rmajor : float = 1.3/0.48 # R/a, aspect ratio
 
-    k_theta_rho_i_cut : float = 1.3
 
     mu1 : float = 0.1 # viscosity coefficient
     mu2 : float = 0.0 # hyper-viscosity coefficient
+    gyroaverage : float = 1.0 # turn on/off gyroaverage effect in J0 matrix. 1.0 means on, 0.0 means off.
+    damping_glf : float = 1.0 # turn on/off GLF damping effect in D_glf matrix. 1.0 means on, 0.0 means off.
+    damping_c : float = 1.0 # turn on/off additional damping effect in Dc matrix. 1.0 means on, 0.0 means off.
 
     w_mn : float = 5*rho_s # Hermite 기저 함수 폭
 
