@@ -6,14 +6,14 @@ from dataclasses import dataclass
 @dataclass
 class Params:
     n_start: int = 4
-    n_delta: int = 20
+    n_delta: int = 4
     n_end: int = 48
     m: int = 50
-    p: int = 10
+    p: int = 30
 
     basis: str = "hermite" # "bessel" or "hermite"
     method: str = "time_evolution" # "eigenproblem" or "time_evolution"
-    dt: float = 1e-5 # time step for time evolution method
+    dt: float = 1e-4 # time step for time evolution method
     T: float = 10.0 # total simulation time for time evolution method
     F0: float = 1e-9 # initial perturbation amplitude for time evolution method
 
@@ -42,6 +42,7 @@ class Params:
     w_mn : float = 5*rho_s # Hermite 기저 함수 폭
 
     save_dir : str = "results" # directory to save results, relative to the current working directory
+    file_name: str | None = None
 
     q_profile_type : str = "monotonic" # "monotonic" or "reversed"
     q0 : float = 0.854 # q(r=0) = q0

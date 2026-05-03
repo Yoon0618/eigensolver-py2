@@ -38,24 +38,38 @@ def parse_params():
     return param
 
 def save_result(param, profiles, mode_data, mat_data, solve_data):
-    from datetime import datetime
-    date = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
     # 저장 경로가 없으면 생성
     import os
     if not os.path.exists(param.save_dir):
         os.makedirs(param.save_dir)
-    file_name = f"n{param.n_start}-{param.n_end}_m{param.m}_p{param.p}_{param.basis}_{date}" # ex) n4_48_m50_p10_bessel_20240601_123456
-    save_path = f"{param.save_dir}/{file_name}"
-    print(f"saving result as {file_name}")
+    
+    if param.basis == "bessel":
+        basis = "b"
+    elif param.basis == "hermite":
+        basis = "h"
+    
+    # 빈 값으로 되어 있는 파일명 base를 템플릿에 맞추어 자동으로 생성
+    if param.file_name is None:
+        from datetime import datetime
+        date = datetime.now().strftime("%Y%m%d_%H%M%S")
+        param.file_name = (
+            f"{date}_n{param.n_start}-{param.n_end}"
+            f"_dn{param.n_delta}"
+            f"_m{param.m}_p{param.p}_{basis}"
+        )
+    
+    save_path = f"{param.save_dir}/{param.file_name}"
+    print(f"saving result at {save_path} ...")
 
     # save parameters as json
     import json
-    with open(f"{save_path}.json", "w", encoding="utf-8") as f:
+    with open(f"{save_path}_params.json", "w", encoding="utf-8") as f:
         json.dump(param.__dict__, f, indent=4)
 
     # save raw data as npz
     # np.savez_compressed(
-    # f"{save_path}.npz",
+    # f"{save_path}_data.npz",
     # **{f"{k}": v for k, v in solve_data.items()}
     # )
     
@@ -69,12 +83,18 @@ def save_result(param, profiles, mode_data, mat_data, solve_data):
 
     from plot import plot_eigenmodes, plot_eigenvalues
     plot_eigenmodes(param, profiles, mode_data, mat_data, solve_data, save=True, show=True)
-    plot_eigenvalues(param, profiles, solve_data, save=True, show=True)
+    eigenvalues_data = plot_eigenvalues(param, profiles, solve_data, save=True, show=True)
 
-    # save note.txt for 약간의 메모 남기기
-    memo_context = input("메모를 입력하세요 (엔터로 종료): ")
-    with open(f"{save_path}_note.txt", "w") as f:
-        f.write(memo_context)
+    # save eigenvalues data as npz
+    np.savez_compressed(
+        f"{save_path}_eigenvalues.npz",
+        **{f"{k}": v for k, v in eigenvalues_data.items()}
+    )
+
+    # # save note.txt for 약간의 메모 남기기
+    # memo_context = input("메모를 입력하세요 (엔터로 종료): ")
+    # with open(f"{save_path}_note.txt", "w") as f:
+    #     f.write(memo_context)
 
 import time
 from functools import wraps

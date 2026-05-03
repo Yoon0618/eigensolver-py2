@@ -33,18 +33,23 @@ def plot_eigenvalues(param, profiles, solve_data, save=True, show=True):
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.plot(k_thetas_rho_i, gammas, 'o-', label='Growth Rate') # 파란색 점
     ax.plot(k_thetas_rho_i, omegas, 's-', label='Frequency/4') # 빨간색 점
-    ax.xlabel(r'$k_{\theta} \rho_i$')
-    ax.ylabel('Growth Rate, Frequency/4')
+    ax.set_xlabel(r'$k_{\theta} \rho_i$')
+    ax.set_ylabel('Growth Rate, Frequency/4')
     text = f"basis: {param.basis}\nparameters:\n {param.n_start} <= n <= {param.n_end}, $\\Delta$n={param.n_delta}\n 1 <= m <= {param.m}, $\\Delta$m=1\n 0 <= p < {param.p}\n"
-    filename = f"n{param.n_start}_{param.n_end}_m{param.m}_p{param.p}_{param.basis}"
     ax.text(0.5, 0.5, text, transform=plt.gca().transAxes, fontsize=10, verticalalignment='center', horizontalalignment='center', bbox=dict(facecolor='white', alpha=0.8))
     ax.legend()
     ax.grid()
     
-    filename = f"n{param.n_start}_{param.n_end}_m{param.m}_p{param.p}_{param.basis}.png"
+    filename = f"{param.file_name}_eigenvalues.png"
     save_path = os.path.join(param.save_dir, filename)
     _finalize_figure(fig, save_path=save_path, save=save, show=show)     
 
+    return {
+        "k_thetas_rho_i": k_thetas_rho_i,
+        "gammas": gammas,
+        "omegas": omegas,
+    }
+    
 def plot_eigenmodes(param, profiles, mode_data, mat_data, solve_data, save=True, show=True):
     # 모드를 시각화한다.
     # ~ plot_eigenmodes
@@ -67,7 +72,6 @@ def plot_eigenmodes(param, profiles, mode_data, mat_data, solve_data, save=True,
     nrows = int(np.ceil(n_count / ncols))
     fig, axes = plt.subplots(nrows, ncols, figsize=(6 * ncols, 5 * nrows), squeeze=False)
     axes_flat = axes.flatten()
-    filename = f"n{param.n_start}_{param.n_end}_m{param.m}_p{param.p}_{param.basis}"
 
     for i, n in enumerate(n_values):
         idx = n_mode_indexes[n] # n 모드에 해당하는 k 인덱스들을 가져온다.
@@ -97,6 +101,8 @@ def plot_eigenmodes(param, profiles, mode_data, mat_data, solve_data, save=True,
 
     fig.suptitle(f"Eigenmodes ({param.basis})", fontsize=14)
     fig.tight_layout(rect=[0, 0, 1, 0.97])
+
+    filename = f"{param.file_name}_eigenmodes.png"
     save_path = os.path.join(param.save_dir, filename)
     _finalize_figure(fig, save_path=save_path, save=save, show=show)
 
@@ -160,7 +166,8 @@ def plot_time_evolution(param, profiles, solve_data, save=True, show=True):
         bbox=dict(facecolor="white", alpha=0.8, edgecolor="none"),
     )
 
-    save_path = os.path.join(param.save_dir, f"time_evolution_gamma{param.suffix}.png")
+    file_name = f"{param.file_name}_time_evolution.png"
+    save_path = os.path.join(param.save_dir, file_name)
     _finalize_figure(fig, save_path=save_path, save=save, show=show)
 
 # def plot_matrices(matrices, titles):
@@ -224,4 +231,3 @@ def main():
 if __name__ == "__main__":
     main()
     
-

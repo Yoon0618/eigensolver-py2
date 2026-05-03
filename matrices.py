@@ -94,7 +94,7 @@ def build_matrices(param, profiles, mode_data):
 
             L[i, i] = - rho_s**2 * alpha[m, p]**2
             J0[i, i] = 1/(1-0.5*L[i, i])
-            Dc[i, i] = param.mu1 * L[i, i] - param.mu2 * L[i, i]**2
+            Dc[i, i] = param.damping_c * (param.mu1 * L[i, i] - param.mu2 * L[i, i]**2)
             M[i, i] = n_hat[rho_mn_index] / Te_hat[rho_mn_index] - n_hat[rho_mn_index] * L[i, i]
             invM[i, i] = 1.0 / M[i, i] if M[i, i] != 0 else 0.0
 
@@ -169,8 +169,7 @@ def build_matrices(param, profiles, mode_data):
         # Laplacian-like 행렬들 계산
         I = np.eye(L.shape[0]) # identity matrix
         J0 = np.linalg.solve(I - param.gyroaverage*0.5*L, I) # AX = I -> X = inv(A)
-        Dc = param.mu1 * L - param.mu2 * L @ L # or mu1 * L - mu2 * diag(ky^4) 매트랩 코드는 이렇게 구현함.
-        Dc = param.damping_c**Dc
+        Dc = param.damping_c * (param.mu1 * L - param.mu2 * L @ L) # or mu1 * L - mu2 * diag(ky^4) 매트랩 코드는 이렇게 구현함.
         invM = np.linalg.solve(M, I) # M = I * n_hat/Te_hat - n_hat * L
 
 

@@ -20,7 +20,6 @@ def main():
     from solve import construct_A_matrix
     A_matrix = construct_A_matrix(mode_data, mat_data)
 
-    
     # solve
     # method 1. eigenvalue problem
     if param.method == "eigenproblem":
