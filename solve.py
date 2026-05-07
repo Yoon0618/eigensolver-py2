@@ -5,7 +5,7 @@ print("[solve.py]")
 import numpy as np
 import scipy.special as sp
 import matplotlib.pyplot as plt
-from utils import timed, downsample
+from utils import timed
 
 @timed
 def construct_A_matrix(mode_data, mat_data):
@@ -139,7 +139,7 @@ def solve_time_evolution(param, matrix):
     # 내가 얻어야 하는 것은 초기에 매우 작게 주어진 모드 계수들이 시간에 따라 어떻게 진화하는지 이다.
     F0 = np.ones(shape=(3*N,), dtype=np.float64) * param.F0 # 초기값 F0는 아주 작은 섭동으로 주어진다. shape (3N,)
     Fs = [] # 각 모드 계수들의 시간 진화를 저장할 리스트. 모드마다 어레이 크기가 달라 넘파이 어레이 Fs를 파이썬 리스트로 담는다.
-    F_blocked = [] # 시간 진화를 마친 n 모드별 모드 계수들을 각각 저장할 리스트.
+    F_block_final_state = [] # 시간 진화를 마친 n 모드별 모드 계수들을 각각 저장할 리스트.
 
     for n in n_values:
         idx = n_mode_indexes[n] # n 모드에 해당하는 인덱스들을 가져온다.
@@ -168,7 +168,7 @@ def solve_time_evolution(param, matrix):
                 print(f"n={n}, time step {i+1}/{len(ts)-1} completed.")
 
         Fs.append(Fs_block)
-        F_blocked.append(Fs_block[-1])  # 마지막 시간 스텝의 모드 계수를 저장
+        F_block_final_state.append(Fs_block[-1])  # 마지막 시간 스텝의 모드 계수를 저장
     print("time evolution simulation completed for all n blocks.")
 
     
@@ -203,8 +203,6 @@ def solve_time_evolution(param, matrix):
         alpha = np.sum(np.conj(F) * dF_dt, axis=1) / den
         omegas[i] = -np.mean(alpha.imag[i0:i1])
 
-    
-
     return {
         "gammas": gammas,
         "omegas": omegas,
@@ -212,7 +210,7 @@ def solve_time_evolution(param, matrix):
         "n_values": n_values,
         "n_mode_indexes": n_mode_indexes,
         "Fs": Fs,
-        "F_blocked": F_blocked,
+        "F_block_final_state": F_block_final_state,
         "fit_info": fit_info,
         "most_unstable_mode_indexes": None,
     }

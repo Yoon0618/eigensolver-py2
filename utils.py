@@ -50,7 +50,7 @@ def save_result(param, profiles, mode_data, mat_data, solve_data):
         basis = "h"
     
     # 빈 값으로 되어 있는 파일명 base를 템플릿에 맞추어 자동으로 생성
-    if param.file_name is None:
+    if param.file_name == "":
         from datetime import datetime
         date = datetime.now().strftime("%Y%m%d_%H%M%S")
         param.file_name = (
@@ -66,12 +66,6 @@ def save_result(param, profiles, mode_data, mat_data, solve_data):
     import json
     with open(f"{save_path}_params.json", "w", encoding="utf-8") as f:
         json.dump(param.__dict__, f, indent=4)
-
-    # save raw data as npz
-    # np.savez_compressed(
-    # f"{save_path}_data.npz",
-    # **{f"{k}": v for k, v in solve_data.items()}
-    # )
     
     # save plots
     if param.method == "eigenproblem":
@@ -84,6 +78,11 @@ def save_result(param, profiles, mode_data, mat_data, solve_data):
     from plot import plot_eigenmodes, plot_eigenvalues
     plot_eigenmodes(param, profiles, mode_data, mat_data, solve_data, save=True, show=True)
     eigenvalues_data = plot_eigenvalues(param, profiles, solve_data, save=True, show=True)
+    
+    # time evolution의 경우 나중에 최종 상태에서 계산을 이어갈 수 있게 최종 상태 저장
+    if param.method == "time_evolution":
+        F_block_final_state = solve_data["F_block_final_state"]
+        eigenvalues_data["F_block_final_state"] = F_block_final_state
 
     # save eigenvalues data as npz
     np.savez_compressed(
@@ -91,7 +90,7 @@ def save_result(param, profiles, mode_data, mat_data, solve_data):
         **{f"{k}": v for k, v in eigenvalues_data.items()}
     )
 
-    # # save note.txt for 약간의 메모 남기기
+    # # save note.txt, 약간의 메모 남기기
     # memo_context = input("메모를 입력하세요 (엔터로 종료): ")
     # with open(f"{save_path}_note.txt", "w") as f:
     #     f.write(memo_context)
@@ -109,10 +108,10 @@ def timed(func):
         return out
     return wrapper
 
-def downsample(x, l):
-    x = np.asarray(x, dtype=float)
-    L = len(x)
-    edges = np.linspace(0, L, l + 1)
-    csum = np.concatenate(([0.0], np.cumsum(x)))
-    integral = np.interp(edges, np.arange(L + 1), csum)
-    return np.diff(integral) / np.diff(edges)
+# def downsample(x, l):
+#     x = np.asarray(x, dtype=float)
+#     L = len(x)
+#     edges = np.linspace(0, L, l + 1)
+#     csum = np.concatenate(([0.0], np.cumsum(x)))
+#     integral = np.interp(edges, np.arange(L + 1), csum)
+#     return np.diff(integral) / np.diff(edges)

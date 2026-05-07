@@ -56,12 +56,13 @@ def plot_eigenmodes(param, profiles, mode_data, mat_data, solve_data, save=True,
 
     # 각 n에 대해 가장 큰 성장률을 가지는 모드의 퍼텐셜을 subplot으로 시각화한다.
     W = mat_data["W"]
+    # rs = profiles["rs"]
     rs = profiles["rs"]
     thetas = np.arange(-np.pi, np.pi, 0.01)
 
     n_values = solve_data["n_values"]
     most_unstable_mode_indexes = solve_data["most_unstable_mode_indexes"]
-    F_blocked = solve_data["F_blocked"]
+    F_blocked = solve_data["F_block_final_state"]
     n_mode_indexes = solve_data["n_mode_indexes"]
     ks = mode_data["ks"]
     n_count = len(n_values)
@@ -77,6 +78,7 @@ def plot_eigenmodes(param, profiles, mode_data, mat_data, solve_data, save=True,
         idx = n_mode_indexes[n] # n 모드에 해당하는 k 인덱스들을 가져온다.
         if most_unstable_mode_indexes is None: # time evolution 방법에서는 각 n별로 계수 F들만 구할 수 있으므로,
             F = F_blocked[i]
+
         else: # eigenproblem 방법에서는 각 n별로 여러 모드가 나올 수 있는데, 그 중에서 가장 성장률이 큰 모드의 계수 F를 가져온다.
             most_unstable_mode_index = most_unstable_mode_indexes[i] # n 모드에서 가장 성장률이 큰 모드의 인덱스를 가져온다.
             F = F_blocked[i][:, most_unstable_mode_index] # 성장률이 가장 큰 모드의 계수들을 가져온다. shape (k_n,) F_blocked[i] = [phi1, phi2, ... phi_kn, Ti1, Ti2, ... Ti_kn, ne1, ne2, ... ne_kn]

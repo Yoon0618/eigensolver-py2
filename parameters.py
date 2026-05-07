@@ -6,10 +6,10 @@ from dataclasses import dataclass
 @dataclass
 class Params:
     n_start: int = 4
-    n_delta: int = 4
+    n_delta: int = 12
     n_end: int = 48
     m: int = 50
-    p: int = 30
+    p: int = 10
 
     basis: str = "hermite" # "bessel" or "hermite"
     method: str = "time_evolution" # "eigenproblem" or "time_evolution"
@@ -42,8 +42,8 @@ class Params:
     w_mn : float = 5*rho_s # Hermite 기저 함수 폭
 
     save_dir : str = "results" # directory to save results, relative to the current working directory
-    file_name: str | None = None
-
+    file_name: str = ""
+    
     q_profile_type : str = "monotonic" # "monotonic" or "reversed"
     q0 : float = 0.854 # q(r=0) = q0
     q1 : float = 2.184 # q(r=1) = q1
