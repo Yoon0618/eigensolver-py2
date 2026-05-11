@@ -352,7 +352,7 @@ def solve_time_evolution(param, matrix):
     
     lnFs = np.empty((len(n_values), len(ts)))
     alphas = np.empty((len(n_values), len(ts)), dtype=complex)
-    F_final_state = []
+    F_block_final_state = []
     
     for i, n in enumerate(n_values):
         # 초기화
@@ -393,7 +393,7 @@ def solve_time_evolution(param, matrix):
         # 결과 저장
         lnFs[i] = lnFs_block
         alphas[i] = alphas_block
-        F_final_state.append(F_now) # 마지막 시간 스텝의 모드 계수를 저장
+        F_block_final_state.append(F_now) # 마지막 시간 스텝의 모드 계수를 저장
     
     print("time evolution completed for all blocks.")
 
@@ -403,7 +403,7 @@ def solve_time_evolution(param, matrix):
         "ts": ts,
         "lnFs": lnFs,
         "alphas": alphas,
-        "F_final_state": F_final_state,
+        "F_block_final_state": F_block_final_state,
         "gammas": gammas,
         "omegas": omegas,
         "fit_info": fit_info,

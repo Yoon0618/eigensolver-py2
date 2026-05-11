@@ -81,8 +81,8 @@ def save_result(param, profiles, mode_data, selected_mat_data, solve_data):
     
     # time evolution의 경우 나중에 최종 상태에서 계산을 이어갈 수 있게 최종 상태 저장
     if param.method == "time_evolution":
-        F_final_state = solve_data["F_final_state"]
-        eigenvalues_data["F_final_state"] = F_final_state
+        F_block_final_state = solve_data["F_block_final_state"]
+        eigenvalues_data["F_block_final_state"] = np.concatenate(F_block_final_state)
 
     # save eigenvalues data as npz
     np.savez_compressed(
@@ -107,11 +107,3 @@ def timed(func):
         print(f"[TIMER] {func.__name__:<24} {t1 - t0:10.6f} s")
         return out
     return wrapper
-
-# def downsample(x, l):
-#     x = np.asarray(x, dtype=float)
-#     L = len(x)
-#     edges = np.linspace(0, L, l + 1)
-#     csum = np.concatenate(([0.0], np.cumsum(x)))
-#     integral = np.interp(edges, np.arange(L + 1), csum)
-#     return np.diff(integral) / np.diff(edges)
