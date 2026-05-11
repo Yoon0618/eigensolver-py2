@@ -110,10 +110,30 @@ def build_matrices(param, profiles, mode_data):
         # w_mn = 5 rho_s
         # v_p = 2^(p/2) Gamma(p+1)^1/2 pi^1/4
 
-        w_mn = param.w_mn
+        # 모드별 w_mn 계산
+        base_w_mn = param.w_mn 
+        p = param.p
+
+        w_modes = np.empty(len(ks), dtype=float)
+
+        for i, (n, m, _) in enumerate(ks):
+            r0 = rs[mode_radius_indexes[i]] # mode의 반지름에 가장 가까운 r 값
+
+            w = base_w_mn
+
+            # Same logic as original MATLAB eigensolver_init.m
+            if r0 < (5.0 / 7.0) * p * w:
+                w = (7.0 / 5.0) * r0 / p
+
+            elif (1.0 - r0) < (4.0 / 7.0) * p * w:
+                w = (7.0 / 4.0) * (1.0 - r0) / p
+
+            w_modes[i] = w
+
 
         # W 계산
         for i, (n, m, p) in enumerate(ks):
+            w_mn = w_modes[i]
             x = (rs - rs[mode_radius_indexes[i]])/w_mn
             v_p = 2**(p/2) * np.sqrt(sp.gamma(p+1)) * np.pi**0.25
             Wk = 1.0/(np.sqrt(2 * rs * w_mn) * v_p) * sp.eval_hermite(p, x) * np.exp(-0.5 * x*x)
@@ -121,6 +141,7 @@ def build_matrices(param, profiles, mode_data):
 
         # dWdr 계산
         for i, (n, m, p) in enumerate(ks):
+            w_mn = w_modes[i]
             p_minus_i = p_minus[i]
             p_plus_i = p_plus[i]
             p_2minus_i = p_2minus[i]
@@ -147,7 +168,7 @@ def build_matrices(param, profiles, mode_data):
             p_2plus_i = p_2plus[i] # n, m이 같고 p2 = p+2인 모드의 인덱스
             same_nm_ks = same_nm[i] # n, m이 같은 모드들의 인덱스
 
-            kappa = rho_s/w_mn
+            kappa = rho_s/w_modes[i]
             ky = rho_s * m / rs[rho_mn_index]
 
             # delta p',p, diagonal

@@ -37,7 +37,7 @@ def parse_params():
     )
     return param
 
-def save_result(param, profiles, mode_data, mat_data, solve_data):
+def save_result(param, profiles, mode_data, selected_mat_data, solve_data):
     
     # 저장 경로가 없으면 생성
     import os
@@ -76,13 +76,13 @@ def save_result(param, profiles, mode_data, mat_data, solve_data):
         plot_time_evolution(param, profiles, solve_data, save=True, show=True)
 
     from plot import plot_eigenmodes, plot_eigenvalues
-    plot_eigenmodes(param, profiles, mode_data, mat_data, solve_data, save=True, show=True)
+    plot_eigenmodes(param, profiles, mode_data, selected_mat_data, solve_data, save=True, show=True)
     eigenvalues_data = plot_eigenvalues(param, profiles, solve_data, save=True, show=True)
     
     # time evolution의 경우 나중에 최종 상태에서 계산을 이어갈 수 있게 최종 상태 저장
     if param.method == "time_evolution":
-        F_block_final_state = solve_data["F_block_final_state"]
-        eigenvalues_data["F_block_final_state"] = F_block_final_state
+        F_final_state = solve_data["F_final_state"]
+        eigenvalues_data["F_final_state"] = F_final_state
 
     # save eigenvalues data as npz
     np.savez_compressed(

@@ -33,7 +33,12 @@ def main():
 
     # save results
     from utils import save_result
-    save_result(param, profiles, mode_data, mat_data, solve_data)
+    selected_mat_data = {
+        "W": mat_data["W"],
+    }
+    del mat_data
+    
+    save_result(param, profiles, mode_data, selected_mat_data, solve_data)
 
 if __name__ == "__main__":
     main()

@@ -1,7 +1,7 @@
 import numpy as np
 from numpy import exp, cosh, tanh
 import sympy as sp
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 @dataclass
 class Params:
@@ -21,8 +21,8 @@ class Params:
 
     r_start : float = 0.2
     r_end : float = 0.9
-    r_num : int = 256
-    dr : float = 1/r_num
+    r_num : int = 8192
+    dr : float = field(init=False)
     
     rhos0 : float = 7.086026e-03
     rho_s : float = rhos0 # rho_s = rhos0/a 인데 왜인지 코드에는 둘이 같게 되어있다...
@@ -47,6 +47,9 @@ class Params:
     q_profile_type : str = "monotonic" # "monotonic" or "reversed"
     q0 : float = 0.854 # q(r=0) = q0
     q1 : float = 2.184 # q(r=1) = q1
+
+    def __post_init__(self):
+        self.dr = 1.0 / self.r_num
 
 def build_profiles(param):
     rs = np.linspace(param.dr, 1.0, param.r_num)

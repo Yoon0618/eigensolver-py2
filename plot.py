@@ -50,19 +50,18 @@ def plot_eigenvalues(param, profiles, solve_data, save=True, show=True):
         "omegas": omegas,
     }
     
-def plot_eigenmodes(param, profiles, mode_data, mat_data, solve_data, save=True, show=True):
+def plot_eigenmodes(param, profiles, mode_data, selected_mat_data, solve_data, save=True, show=True):
     # 모드를 시각화한다.
     # ~ plot_eigenmodes
 
     # 각 n에 대해 가장 큰 성장률을 가지는 모드의 퍼텐셜을 subplot으로 시각화한다.
-    W = mat_data["W"]
-    # rs = profiles["rs"]
+    W = selected_mat_data["W"]
     rs = profiles["rs"]
     thetas = np.arange(-np.pi, np.pi, 0.01)
 
     n_values = solve_data["n_values"]
     most_unstable_mode_indexes = solve_data["most_unstable_mode_indexes"]
-    F_blocked = solve_data["F_block_final_state"]
+    F_blocked = solve_data["F_final_state"]
     n_mode_indexes = solve_data["n_mode_indexes"]
     ks = mode_data["ks"]
     n_count = len(n_values)
@@ -89,7 +88,9 @@ def plot_eigenmodes(param, profiles, mode_data, mat_data, solve_data, save=True,
         exp_imtheta = np.exp(1j * m[:, None] * thetas[None, :]) # theta에 대한 exp(i*m*theta) 부분을 계산한다. shape (k_n, 100,)
         
         # phi = sum_k F_k*W_k*exp(1j*m*theta) shape (256, 100)
-        phi = np.sum(phi_k[:, None, None] * Wk[:, :, None] * exp_imtheta[:, None, :], axis=0) # F_k * W_k(r) * exp(i*m*theta) 부분을 계산한다. shape (256, 100)
+        # F_k * W_k(r) * exp(i*m*theta) 부분을 계산한다. shape (256, 100)
+        exp_imtheta = np.exp(1j * m[:, None] * thetas[None, :])
+        phi = Wk.T @ (phi_k[:, None] * exp_imtheta)
         
         ax = axes_flat[i]
         contour = ax.contourf(x, y, phi.real, levels=50, cmap='viridis')
@@ -125,51 +126,258 @@ def _get_time_fit_info(ts, F_block, info=None):
     return log_amp, i0, i1, slope, intercept
 
 def plot_time_evolution(param, profiles, solve_data, save=True, show=True):
-    n_values = solve_data["n_values"]
-    ts = solve_data["ts"]
-    Fs = solve_data["Fs"]
-    fit_info = solve_data.get("fit_info")
+    """
+    Time-evolution 결과를 plot한다.
 
-    fig, ax = plt.subplots(figsize=(10, 6))
+    새 solve_data 구조:
+        ts      : shape (Nt,)
+        lnFs    : shape (num_n, Nt)
+        alphas  : shape (num_n, Nt), optional
+                  alpha(t) = <F, B F> / <F, F>
+                  dominant mode에서 alpha -> gamma - i omega
+        gammas  : shape (num_n,), optional
+        omegas  : shape (num_n,), optional
+        fit_info: list of dict, optional
 
-    fit_t0 = None
-    fit_t1 = None
+    그리는 것:
+        1. ln ||F(t)|| 와 late-time linear fit
+        2. alphas가 있으면 omega(t) = -Im(alpha(t)) 와 late-time 평균 omega
+    """
+    import os
+    import numpy as np
+    import matplotlib.pyplot as plt
+
+    ts = np.asarray(solve_data["ts"], dtype=float)
+    lnFs = np.asarray(solve_data["lnFs"], dtype=float)
+
+    alphas = solve_data.get("alphas", None)
+    if alphas is not None:
+        alphas = np.asarray(alphas, dtype=complex)
+
+    fit_info = solve_data.get("fit_info", None)
+    gammas = solve_data.get("gammas", None)
+    omegas = solve_data.get("omegas", None)
+
+    # n_values는 solve_data에 넣는 것을 권장.
+    # 없으면 param에서 복원 시도.
+    n_values = solve_data.get("n_values", None)
+    if n_values is None:
+        candidate = np.arange(param.n_start, param.n_end + 1, param.n_delta)
+        if len(candidate) == lnFs.shape[0]:
+            n_values = candidate
+        else:
+            # fallback: label만 index로 표시
+            n_values = np.arange(lnFs.shape[0])
+    else:
+        n_values = np.asarray(n_values)
+
+    if lnFs.ndim != 2:
+        raise ValueError(f"lnFs must have shape (num_n, Nt), got {lnFs.shape}")
+
+    if lnFs.shape[1] != len(ts):
+        raise ValueError(
+            f"lnFs.shape[1] must match len(ts). "
+            f"lnFs.shape={lnFs.shape}, len(ts)={len(ts)}"
+        )
+
+    if alphas is not None and alphas.shape != lnFs.shape:
+        raise ValueError(
+            f"alphas must have same shape as lnFs. "
+            f"alphas.shape={alphas.shape}, lnFs.shape={lnFs.shape}"
+        )
+
+    if len(n_values) != lnFs.shape[0]:
+        raise ValueError(
+            f"len(n_values) must match lnFs.shape[0]. "
+            f"len(n_values)={len(n_values)}, lnFs.shape={lnFs.shape}"
+        )
+
+    has_alpha = alphas is not None
+
+    if has_alpha:
+        fig, axes = plt.subplots(
+            2,
+            1,
+            figsize=(10, 8),
+            sharex=True,
+            gridspec_kw={"height_ratios": [2.0, 1.0]},
+        )
+        ax_amp, ax_omega = axes
+    else:
+        fig, ax_amp = plt.subplots(figsize=(10, 6))
+        ax_omega = None
+
+    fit_t0_global = None
+    fit_t1_global = None
+
+    def _get_info(i):
+        if fit_info is None:
+            return None
+        if i >= len(fit_info):
+            return None
+        return fit_info[i]
+
+    def _fit_from_info_or_recompute(i, y):
+        """
+        fit_info가 있으면 그 정보를 사용하고,
+        없으면 마지막 20% 구간에서 새로 fit한다.
+        """
+        info = _get_info(i)
+
+        if info is not None:
+            t0 = float(info["fit_t_start"])
+            t1 = float(info["fit_t_end"])
+            gamma = float(info["gamma"])
+            intercept = float(info["intercept"])
+
+            mask = (
+                np.isfinite(ts)
+                & np.isfinite(y)
+                & (ts >= t0)
+                & (ts <= t1)
+            )
+
+            if np.count_nonzero(mask) >= 2:
+                return mask, gamma, intercept, info
+
+        # fallback: 마지막 20%에서 fit
+        t0 = ts[0] + 0.8 * (ts[-1] - ts[0])
+        mask = np.isfinite(ts) & np.isfinite(y) & (ts >= t0)
+
+        if np.count_nonzero(mask) < 2:
+            raise ValueError(f"Not enough valid points to fit n index {i}")
+
+        X = np.column_stack([ts[mask], np.ones(np.count_nonzero(mask))])
+        gamma, intercept = np.linalg.lstsq(X, y[mask], rcond=None)[0]
+
+        y_pred = gamma * ts[mask] + intercept
+        ss_res = np.sum((y[mask] - y_pred) ** 2)
+        ss_tot = np.sum((y[mask] - np.mean(y[mask])) ** 2)
+        r2 = 1.0 - ss_res / ss_tot if ss_tot > 0 else np.nan
+
+        info = {
+            "gamma": float(gamma),
+            "intercept": float(intercept),
+            "fit_t_start": float(ts[mask][0]),
+            "fit_t_end": float(ts[mask][-1]),
+            "fit_points": int(np.count_nonzero(mask)),
+            "r2": float(r2),
+        }
+
+        return mask, float(gamma), float(intercept), info
+
     for i, n in enumerate(n_values):
-        info = None if fit_info is None else fit_info[i]
-        log_amp, i0, i1, slope, intercept = _get_time_fit_info(ts, Fs[i], info)
+        y = lnFs[i]
 
-        line, = ax.plot(ts, log_amp, label=f"n={n}")
-        ax.plot(ts[i0:i1], slope * ts[i0:i1] + intercept, "--", color=line.get_color(), alpha=0.85)
+        fit_mask, gamma, intercept, info = _fit_from_info_or_recompute(i, y)
 
-        fit_t0 = ts[i0] if fit_t0 is None else min(fit_t0, ts[i0])
-        fit_t1 = ts[i1 - 1] if fit_t1 is None else max(fit_t1, ts[i1 - 1])
+        # label용 gamma/omega
+        gamma_label = gamma
+        if gammas is not None:
+            gamma_label = float(gammas[i])
 
-    if fit_t0 is not None and fit_t1 is not None:
-        ax.axvspan(fit_t0, fit_t1, color="gray", alpha=0.12, label="fit interval")
+        omega_label = None
+        if omegas is not None:
+            omega_label = float(omegas[i])
+        elif info is not None and "omega" in info:
+            omega_label = float(info["omega"])
 
-    ax.set_xlabel("time")
-    ax.set_ylabel("ln(||F||)")
-    ax.set_title("Time evolution of mode amplitude and linear fit")
-    ax.grid(True)
-    ax.legend(loc="best")
+        if omega_label is None:
+            label = f"n={n}, γ={gamma_label:.3g}"
+        else:
+            label = f"n={n}, γ={gamma_label:.3g}, ω={omega_label:.3g}"
 
+        line, = ax_amp.plot(ts, y, label=label)
+
+        # fit line
+        ax_amp.plot(
+            ts[fit_mask],
+            gamma * ts[fit_mask] + intercept,
+            "--",
+            color=line.get_color(),
+            alpha=0.85,
+        )
+
+        fit_t0 = float(ts[fit_mask][0])
+        fit_t1 = float(ts[fit_mask][-1])
+
+        fit_t0_global = fit_t0 if fit_t0_global is None else min(fit_t0_global, fit_t0)
+        fit_t1_global = fit_t1 if fit_t1_global is None else max(fit_t1_global, fit_t1)
+
+        # omega(t) = -Im(alpha)
+        if has_alpha:
+            omega_t = -np.imag(alphas[i])
+
+            ax_omega.plot(
+                ts,
+                omega_t,
+                color=line.get_color(),
+                alpha=0.75,
+            )
+
+            # late-time omega mean line
+            if omega_label is not None:
+                ax_omega.plot(
+                    ts[fit_mask],
+                    np.full(np.count_nonzero(fit_mask), omega_label),
+                    "--",
+                    color=line.get_color(),
+                    alpha=0.85,
+                )
+
+    # fit interval shading
+    if fit_t0_global is not None and fit_t1_global is not None:
+        ax_amp.axvspan(
+            fit_t0_global,
+            fit_t1_global,
+            color="gray",
+            alpha=0.12,
+            label="fit interval",
+        )
+
+        if ax_omega is not None:
+            ax_omega.axvspan(
+                fit_t0_global,
+                fit_t1_global,
+                color="gray",
+                alpha=0.12,
+            )
+
+    ax_amp.set_ylabel(r"$\ln \|F(t)\|$")
+    ax_amp.set_title("Time evolution: amplitude growth and frequency estimate")
+    ax_amp.grid(True)
+    ax_amp.legend(loc="best", fontsize=8)
+
+    if ax_omega is not None:
+        ax_omega.set_xlabel("time")
+        ax_omega.set_ylabel(r"$-\mathrm{Im}\,\alpha(t)$")
+        ax_omega.grid(True)
+    else:
+        ax_amp.set_xlabel("time")
+
+    # 정보 박스
     text = (
         f"basis: {param.basis}\n"
-        f"n={param.n_start}:{param.n_delta}:{param.n_end}, m<= {param.m}, p< {param.p}\n"
+        f"n={param.n_start}:{param.n_delta}:{param.n_end}, "
+        f"m≤{param.m}, p<{param.p}\n"
         f"dt={param.dt}, T={param.T}, F0={param.F0}"
     )
-    ax.text(
+
+    ax_amp.text(
         0.02,
         0.02,
         text,
-        transform=ax.transAxes,
+        transform=ax_amp.transAxes,
         fontsize=9,
         verticalalignment="bottom",
         bbox=dict(facecolor="white", alpha=0.8, edgecolor="none"),
     )
 
+    fig.tight_layout()
+
     file_name = f"{param.file_name}_time_evolution.png"
     save_path = os.path.join(param.save_dir, file_name)
+
     _finalize_figure(fig, save_path=save_path, save=save, show=show)
 
 # def plot_matrices(matrices, titles):
