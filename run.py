@@ -13,12 +13,34 @@ def main():
     from modes import build_modes
     mode_data = build_modes(param, profiles)
     
-    # build matrices
+    # # build matrices
     from matrices import build_matrices
     mat_data = build_matrices(param, profiles, mode_data)
 
+    # construct A matrix
     from solve import construct_A_matrix
     A_matrix = construct_A_matrix(mode_data, mat_data)
+    
+    # # build matrix A or load from file
+    # if param.load_mat is None:
+        # # build matrices
+        # from matrices import build_matrices
+        # mat_data = build_matrices(param, profiles, mode_data)
+
+        # # construct A matrix
+        # from solve import construct_A_matrix
+        # A_matrix = construct_A_matrix(mode_data, mat_data)
+        
+    # elif param.load_mat is not None:
+    #     from utils import load_mat
+    #     A_matrix = load_mat(param.load_mat)
+    
+    # # save matrix A if needed
+    # if param.save_mat:
+    #     from utils import save_mat
+    #     save_mat(A_matrix, param.save_mat_path)
+
+    
 
     # solve
     # method 1. eigenvalue problem
@@ -30,6 +52,11 @@ def main():
     elif param.method == "time_evolution":
         from solve import solve_time_evolution
         solve_data = solve_time_evolution(param, A_matrix)
+
+    # method 3. matrix exponential time evolution
+    elif param.method == "matrix_exponential":
+        from solve import solve_matrix_exponential
+        solve_data = solve_matrix_exponential(param, A_matrix)
 
     # save results
     from utils import save_result

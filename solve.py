@@ -6,9 +6,9 @@ print("[solve.py]")
 import numpy as np
 from utils import timed
 from scipy.sparse import csr_matrix, issparse
-from scipy.sparse.linalg import eigs, LinearOperator
+from scipy.sparse.linalg import eigs, LinearOperator, expm_multiply
 
-
+@timed
 def sparse_check(A):
     """
     density가 0.2보다 작으면 sparse, 그렇지 않으면 dense로 판단한다.
@@ -24,6 +24,7 @@ def sparse_check(A):
     if density < 0.2:
         return "sparse"
     else:
+        print(f"A matrix is too dense to be treated as sparse. Consider using a dense solver for this block.")
         return "dense"
 
 @timed
@@ -204,6 +205,18 @@ def lnF(F):
     norm = np.linalg.norm(F)
     return np.log(np.maximum(norm, 1e-300)) # underflow 방지
 
+def lnF_and_alpha(F, BF, eps=1e-300):
+    """Return ln(||F||) and alpha=<F,BF>/<F,F> using an already computed BF."""
+    denominator = np.vdot(F, F)
+    log_amp = 0.5 * np.log(max(denominator.real, eps))
+
+    if abs(denominator) < eps:
+        alpha_value = np.nan + 1j * np.nan
+    else:
+        alpha_value = np.vdot(F, BF) / denominator
+
+    return log_amp, alpha_value
+
 def alpha(F, BF, eps=1e-300):
     # k1 = B_block @ F에서 계산된 k1을 이용해서 alpha를 계산한다. alpha = (F^* @ k1) / (F^* @ F)
     numerator = np.vdot(F, BF)
@@ -369,24 +382,24 @@ def solve_time_evolution(param, matrix):
         for j in range(steps):
             # RK4 계수 게산
             k1 = B_block @ F_now
+
+            # 계량값 저장
+            lnFs_block[j], alphas_block[j] = lnF_and_alpha(F_now, k1)
+
             k2 = B_block @ (F_now + 0.5*k1*dt)
             k3 = B_block @ (F_now + 0.5*k2*dt)
             k4 = B_block @ (F_now + k3*dt)
-
-            # 계량값 저장
-            lnFs_block[j] = lnF(F_now)
-            alphas_block[j] = alpha(F_now, k1)
 
             # 상태 업데이트
             F_now = F_now + 1/6 * (k1 + 2*k2 + 2*k3 + k4)*dt
 
             # logging
-            if (j+1) % 1000 == 0 or j == len(ts)-1:
-                print(f"n={n}, time step {j+1}/{len(ts)}")
+            if (j+1) % 1000 == 0 or (j+1) == steps:
+                print(f"n={n}, time step {j+1}/{steps}")
         
         # 마지막 인덱스 계량값 저장
-        lnFs_block[-1] = lnF(F_now)
-        alphas_block[-1] = alpha(F_now, B_block @ F_now)
+        BF_final = B_block @ F_now
+        lnFs_block[-1], alphas_block[-1] = lnF_and_alpha(F_now, BF_final)
 
         print(f"completed.")
         
@@ -403,6 +416,109 @@ def solve_time_evolution(param, matrix):
         "ts": ts,
         "lnFs": lnFs,
         "alphas": alphas,
+        "F_block_final_state": F_block_final_state,
+        "gammas": gammas,
+        "omegas": omegas,
+        "fit_info": fit_info,
+        "n_values": n_values,
+        "n_mode_indexes": n_mode_indexes,
+        "most_unstable_mode_indexes": None,
+    }
+
+@timed
+def solve_matrix_exponential(param, matrix):
+    """dF/dt = B @ F, B = -1j*A 를 matrix exponential으로 시간 진화시킨다.
+
+    RK4와 같은 출력 형식을 사용하되, 전체 Fs(t)는 저장하지 않는다.
+
+    expm_multiply는 지정된 시간 구간의 여러 time sample을 한 번에 반환하므로,
+    전체 time sample을 한 번에 요청하면 다시 큰 메모리를 쓰게 된다.
+    따라서 param.expm_chunk_steps 단위로 나누어 호출한다.
+    """
+
+    n_values = matrix["n_values"]
+    n_mode_indexes = matrix["n_mode_indexes"]
+    N = matrix["N"]
+
+    dt = param.dt
+    steps = int(round(param.T / dt))
+    ts = dt * np.arange(steps + 1)
+
+    chunk_steps = int(getattr(param, "expm_chunk_steps", 1000))
+    if chunk_steps <= 0:
+        chunk_steps = steps
+    chunk_steps = max(1, min(chunk_steps, max(1, steps)))
+
+    F0 = np.ones(shape=(3*N,), dtype=np.complex128) * param.F0
+
+    lnFs = np.empty((len(n_values), len(ts)), dtype=float)
+    alphas = np.empty((len(n_values), len(ts)), dtype=complex)
+    F_block_final_state = []
+
+    print(
+        "matrix exponential time evolution: "
+        f"steps={steps}, dt={dt}, chunk_steps={chunk_steps}"
+    )
+
+    for i, n in enumerate(n_values):
+        idx = n_mode_indexes[n]
+        idx_full = np.concatenate([idx, idx + N, idx + 2*N])
+
+        F_now = F0[idx_full].copy()
+        B_block = -1j * matrix["blocked_A"][n]
+
+        lnFs_block = np.empty_like(ts, dtype=float)
+        alphas_block = np.empty_like(ts, dtype=complex)
+
+        print(f"calculating matrix exponential evolution of n={n} block, shape: {B_block.shape}")
+
+        step0 = 0
+        while step0 < steps:
+            local_steps = min(chunk_steps, steps - step0)
+
+            # states[j] = exp(B_block * (j*dt)) @ F_now, j=0..local_steps
+            # Only this chunk is materialized, then discarded.
+            states = expm_multiply(
+                B_block,
+                F_now,
+                start=0.0,
+                stop=local_steps * dt,
+                num=local_steps + 1,
+                endpoint=True,
+            )
+
+            # Record all states except the last one. The last state becomes the
+            # initial condition of the next chunk and will be recorded there.
+            for local_j in range(local_steps):
+                global_j = step0 + local_j
+                F = states[local_j]
+                BF = B_block @ F
+                lnFs_block[global_j], alphas_block[global_j] = lnF_and_alpha(F, BF)
+
+            F_now = np.asarray(states[-1], dtype=np.complex128).copy()
+            step0 += local_steps
+
+            print(f"n={n}, expm time step {step0}/{steps}")
+
+        # 마지막 시각 T 기록
+        BF_final = B_block @ F_now
+        lnFs_block[-1], alphas_block[-1] = lnF_and_alpha(F_now, BF_final)
+
+        print("completed.")
+
+        lnFs[i] = lnFs_block
+        alphas[i] = alphas_block
+        F_block_final_state.append(F_now)
+
+    print("matrix exponential evolution completed for all blocks.")
+
+    gammas, omegas, fit_info = calc_gamma_omega(lnFs, alphas, ts, n_values)
+
+    return {
+        "ts": ts,
+        "lnFs": lnFs,
+        "alphas": alphas,
+        "F_final_state": F_block_final_state,
         "F_block_final_state": F_block_final_state,
         "gammas": gammas,
         "omegas": omegas,

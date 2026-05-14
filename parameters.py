@@ -9,13 +9,14 @@ class Params:
     n_delta: int = 12
     n_end: int = 48
     m: int = 50
-    p: int = 10
+    p: int = 40
 
     basis: str = "hermite" # "bessel" or "hermite"
-    method: str = "time_evolution" # "eigenproblem" or "time_evolution"
+    method: str = "time_evolution" # "eigenproblem", "time_evolution", or "matrix_exponential"
     dt: float = 1e-4 # time step for time evolution method
     T: float = 10.0 # total simulation time for time evolution method
     F0: float = 1e-9 # initial perturbation amplitude for time evolution method
+    expm_chunk_steps: int = 1000 # number of output steps computed per expm_multiply call
 
     suffix: str = "" # file name suffix for saving images
 
@@ -43,6 +44,11 @@ class Params:
 
     save_dir : str = "results" # directory to save results, relative to the current working directory
     file_name: str = ""
+
+    load_mat: bool = False # whether to load matrix data from a file
+    load_mat_path: str = "" # path to matrix data to load, if not specified, compute from scratch
+    save_mat: bool = False # whether to save computed matrix data for later loading
+    save_mat_path: str = ""
     
     q_profile_type : str = "monotonic" # "monotonic" or "reversed"
     q0 : float = 0.854 # q(r=0) = q0

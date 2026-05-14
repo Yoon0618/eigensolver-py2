@@ -35,7 +35,7 @@ def plot_eigenvalues(param, profiles, solve_data, save=True, show=True):
     ax.plot(k_thetas_rho_i, omegas, 's-', label='Frequency/4') # 빨간색 점
     ax.set_xlabel(r'$k_{\theta} \rho_i$')
     ax.set_ylabel('Growth Rate, Frequency/4')
-    text = f"basis: {param.basis}\nparameters:\n {param.n_start} <= n <= {param.n_end}, $\\Delta$n={param.n_delta}\n 1 <= m <= {param.m}, $\\Delta$m=1\n 0 <= p < {param.p}\n"
+    text = f"basis: {param.basis}\nmethod: {param.method}\nparameters:\n {param.n_start} <= n <= {param.n_end}, $\\Delta$n={param.n_delta}\n 1 <= m <= {param.m}, $\\Delta$m=1\n 0 <= p < {param.p}\n"
     ax.text(0.5, 0.5, text, transform=plt.gca().transAxes, fontsize=10, verticalalignment='center', horizontalalignment='center', bbox=dict(facecolor='white', alpha=0.8))
     ax.legend()
     ax.grid()
@@ -61,7 +61,7 @@ def plot_eigenmodes(param, profiles, mode_data, selected_mat_data, solve_data, s
 
     n_values = solve_data["n_values"]
     most_unstable_mode_indexes = solve_data["most_unstable_mode_indexes"]
-    F_blocked_final_state = solve_data["F_block_final_state"]
+    F_blocks = solve_data.get("F_block_final_state", solve_data.get("F_blocked"))
     n_mode_indexes = solve_data["n_mode_indexes"]
     ks = mode_data["ks"]
     n_count = len(n_values)
@@ -76,11 +76,11 @@ def plot_eigenmodes(param, profiles, mode_data, selected_mat_data, solve_data, s
     for i, n in enumerate(n_values):
         idx = n_mode_indexes[n] # n 모드에 해당하는 k 인덱스들을 가져온다.
         if most_unstable_mode_indexes is None: # time evolution 방법에서는 각 n별로 계수 F들만 구할 수 있으므로,
-            F = F_blocked_final_state[i]
+            F = F_blocks[i]
 
         else: # eigenproblem 방법에서는 각 n별로 여러 모드가 나올 수 있는데, 그 중에서 가장 성장률이 큰 모드의 계수 F를 가져온다.
             most_unstable_mode_index = most_unstable_mode_indexes[i] # n 모드에서 가장 성장률이 큰 모드의 인덱스를 가져온다.
-            F = F_blocked_final_state[i][:, most_unstable_mode_index] # 성장률이 가장 큰 모드의 계수들을 가져온다. shape (k_n,) F_blocked[i] = [phi1, phi2, ... phi_kn, Ti1, Ti2, ... Ti_kn, ne1, ne2, ... ne_kn]
+            F = F_blocks[i][:, most_unstable_mode_index] # 성장률이 가장 큰 모드의 계수들을 가져온다. shape (k_n,) F_blocked[i] = [phi1, phi2, ... phi_kn, Ti1, Ti2, ... Ti_kn, ne1, ne2, ... ne_kn]
         
         phi_k = F[:len(idx)] # phi에 해당하는 계수들을 가져온다. shape (k_n,)
         Wk = W[idx] # n 모드에 해당하는 Wk 함수들을 가져온다. shape (k_n, r_num)
@@ -428,13 +428,87 @@ def plot_time_evolution(param, profiles, solve_data, save=True, show=True):
 #     plt.tight_layout()
 #     plt.show()
 #     plt.close(fig)
+
+def plot_growth_rate_comparison(
+    results_dir="results",
+    params_paths=None,
+    label_keys=("method", "basis", "n", "m", "p", "dt"),
+    gamma_key="gammas",
+    save_path=None,
+    show=True,
+):
+    """
+    여러 run의 *_params.json, *_eigenvalues.npz를 읽어서 growth rate를 한 그래프에 비교한다.
+
+    params_paths가 None이면 results_dir 아래의 *_params.json 전체를 사용한다.
+    params_paths에 json 파일 경로들을 직접 넘기면 해당 run들만 그린다.
+    gamma_key를 "gammas_raw"로 바꾸면 time-domain solver의 정규화 전 growth rate를 그릴 수 있다.
+    """
+    import json
+    from pathlib import Path
+
+    if params_paths is None:
+        params_paths = [
+            path for path in sorted(Path(results_dir).glob("*_params.json"))
+            if path.with_name(path.name.replace("_params.json", "_eigenvalues.npz")).exists()
+        ]
+    else:
+        params_paths = [Path(path) for path in params_paths]
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    run_count = 0
+
+    for params_path in params_paths:
+        npz_path = params_path.with_name(
+            params_path.name.replace("_params.json", "_eigenvalues.npz")
+        )
+
+        with open(params_path, encoding="utf-8") as f:
+            params = json.load(f)
+
+        with np.load(npz_path, allow_pickle=True) as data:
+            k_thetas_rho_i = np.asarray(data["k_thetas_rho_i"], dtype=float)
+            gammas = np.asarray(data[gamma_key], dtype=float)
+
+        label_parts = []
+        for key in label_keys:
+            if key == "n":
+                label_parts.append(
+                    f"n={params['n_start']}:{params['n_delta']}:{params['n_end']}"
+                )
+            elif key in params:
+                label_parts.append(f"{key}={params[key]}")
+
+        label = ", ".join(label_parts) or params_path.stem.replace("_params", "")
+        ax.plot(k_thetas_rho_i, gammas, "o-", label=label)
+        run_count += 1
+
+    ax.set_xlabel(r"$k_{\theta} \rho_i$")
+    ax.set_ylabel("Growth rate")
+    ax.set_title("Growth rate comparison")
+    ax.grid(True)
+
+    if run_count > 0:
+        ax.legend(loc="best", fontsize=8)
+
+    if save_path is not None:
+        save_path = os.fspath(save_path)
+        if os.path.dirname(save_path) == "":
+            save_path = os.path.join(".", save_path)
+
+    _finalize_figure(fig, save_path=save_path, save=save_path is not None, show=show)
     
 def main():
     # plot.py를 직접 실행하면 npz, json 파일을 읽어서 결과를 플로팅한다.
 
     # 0: eigenvalues, 1: eigenmodes, 2: growth rates
-    plot_type = input("플롯 타입을 선택하세요 (1: eigenvalues, 2: eigenmodes, 3: growth rates): ")
+    # plot_type = input("플롯 타입을 선택하세요 (1: eigenvalues, 2: eigenmodes, 3: growth rates): ")
     
+    plot_growth_rate_comparison(
+    results_dir="results-w/results",
+    save_path="results-w/growth_rate_comparison.png",
+    )
+
     return 0
     
 

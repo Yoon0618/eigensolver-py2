@@ -130,7 +130,6 @@ def build_matrices(param, profiles, mode_data):
 
             w_modes[i] = w
 
-
         # W 계산
         for i, (n, m, p) in enumerate(ks):
             w_mn = w_modes[i]
@@ -193,6 +192,7 @@ def build_matrices(param, profiles, mode_data):
         Dc = param.damping_c * (param.mu1 * L - param.mu2 * L @ L) # or mu1 * L - mu2 * diag(ky^4) 매트랩 코드는 이렇게 구현함.
         invM = np.linalg.solve(M, I) # M = I * n_hat/Te_hat - n_hat * L
 
+    print(f"W, dWdr, Laplacian-like matrices computed.")
 
     # %% 다음은 수치 적분이 필요한 grad_parallel(k_parallel), D_glf, 등등 행렬
 
