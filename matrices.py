@@ -409,7 +409,6 @@ def build_matrices(param, profiles, mode_data):
         "invM": invM,
         "J0": J0,
         "Dc": Dc,
-        "W": W,
         "k_parallel": k_parallel,
         "n_k_parallel": n_k_parallel,
         "Ti_k_parallel": Ti_k_parallel,

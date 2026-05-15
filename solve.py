@@ -8,7 +8,6 @@ from utils import timed
 from scipy.sparse import csr_matrix, issparse
 from scipy.sparse.linalg import eigs, LinearOperator, expm_multiply
 
-@timed
 def sparse_check(A):
     """
     density가 0.2보다 작으면 sparse, 그렇지 않으면 dense로 판단한다.
@@ -49,11 +48,16 @@ def construct_A_matrix(mode_data, mat_data):
         
     '''
 
+    print("constructing A matrix...")
+
     # 미리 계산된 행렬들을 가져온다.
     L, M, invM, J0, Dc = mat_data["L"], mat_data["M"], mat_data["invM"], mat_data["J0"], mat_data["Dc"]
     k_parallel, n_k_parallel, Ti_k_parallel, tau_k_parallel = mat_data["k_parallel"], mat_data["n_k_parallel"], mat_data["Ti_k_parallel"], mat_data["tau_k_parallel"]
     D_glf, Gp, Gn, GTi, a, b = mat_data["D_glf"], mat_data["Gp"], mat_data["Gn"], mat_data["GTi"], mat_data["a"], mat_data["b"]
     
+
+    print("calculating Aij matrices...")
+
     # A 행렬을 조립한다. A는 3N x 3N 행렬로, N은 모드의 총 개수이다.
     A11 = invM @ (-a + Gp @ L + Gn @ J0 + 1j*Dc @ M)
     A12 = -invM @ b
@@ -79,6 +83,8 @@ def construct_A_matrix(mode_data, mat_data):
     # n1 = n_values[0] # 예시로 첫 번째 n 모드를 선택한다.
     # indexes = n_mode_indexes[n1]  # 선택한 n 모드에 해당하는 인덱스들을 가져온다.
     # A_n = A[np.ix_(indexes, indexes)]  # A에서 선택한 n 모드에 해당하는 부분 행렬을 추출한다
+
+    print("block diagonalizing A matrix by n modes and converting to sparse if needed...")
 
     blocked_A = {}
 
@@ -330,6 +336,7 @@ def calc_gamma_omega(lnFs, alphas, ts, n_values, fit_start_fraction=0.8):
 
     return gammas, omegas, fit_info
 
+@timed
 def solve_time_evolution(param, matrix):
     """dF/dt = B @ F 시간 진화를 풀어서 모드의 성장률과 진동수를 구한다.
     B = -j * A

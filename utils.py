@@ -80,7 +80,7 @@ def load_mat(path):
     return A_matrix
 
 def save_mat(A_matrix, path):
-    path = param.mat_save_folder_name + "/" + param.file_name + ".npz"
+    path = param.mat_save_folder + "/" + param.save_mat_path + ".npz"
     np.savez_compressed(path, **A_matrix)
 
 
@@ -95,15 +95,21 @@ def save_result(param, profiles, mode_data, selected_mat_data, solve_data):
         basis = "b"
     elif param.basis == "hermite":
         basis = "h"
+
+    if param.method == "eigenproblem":
+        method = "eg"
+    elif param.method == "time_evolution":
+        method = "te"
+    elif param.method == "matrix_exponential":
+        method = "me"
     
     # 빈 값으로 되어 있는 파일명 base를 템플릿에 맞추어 자동으로 생성
     if param.file_name == "":
         from datetime import datetime
         date = datetime.now().strftime("%Y%m%d_%H%M%S")
         param.file_name = (
-            f"{date}_n{param.n_start}-{param.n_end}"
-            f"_dn{param.n_delta}"
-            f"_m{param.m}_p{param.p}_{basis}"
+            f"{date}_n{param.n_start}-{param.n_delta}-{param.n_end}"
+            f"_m{param.m}_p{param.p}_{basis}_{method}"
         )
     
     save_path = f"{param.save_dir}/{param.file_name}"
