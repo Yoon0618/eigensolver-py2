@@ -7,19 +7,35 @@ import scipy.special as sp
 import matplotlib.pyplot as plt
 from utils import timed
 
+
+def _build_nm_groups(ks):
+    groups = {}
+
+    for idx, (n, m, _) in enumerate(ks):
+        key = (int(n), int(m))
+        groups.setdefault(key, []).append(idx)
+
+    for key, idxs in groups.items():
+        idxs.sort(key=lambda i: int(ks[i, 2]))
+        groups[key] = np.asarray(idxs, dtype=int)
+
+    return groups
+
+
+def _weighted_cross(W_left, W_right, weight):
+    return (W_left * weight[None, :]) @ W_right.T
+
+
 @timed
 def build_matrices(param, profiles, mode_data):
     # mode data 불러오기
     ks = mode_data["ks"]
     mode_radius_indexes = mode_data["mode_radius_indexes"]
     mode_q_values = mode_data["mode_q_values"]
-    m_plus = mode_data["m_plus"]
-    m_minus = mode_data["m_minus"]
     p_minus = mode_data["p_minus"]
     p_plus = mode_data["p_plus"]
     p_2minus = mode_data["p_2minus"]
     p_2plus = mode_data["p_2plus"]
-    index_of_mode = mode_data["index_of_mode"]
     same_nm = mode_data["same_nm"]
     
     # %% parameters 불러오기
@@ -194,6 +210,9 @@ def build_matrices(param, profiles, mode_data):
 
     print(f"W, dWdr, Laplacian-like matrices computed.")
 
+    W = np.ascontiguousarray(W)
+    dWdr = np.ascontiguousarray(dWdr)
+
     # %% 다음은 수치 적분이 필요한 grad_parallel(k_parallel), D_glf, 등등 행렬
 
     # F k_parallel kk' = i < k | F grad_parallel | k' > = delta(m, m') * delta(n, n') * a/R int_0^1 F(r) ( m/q(r) - n ) Wk Wk' rdr 
@@ -211,192 +230,78 @@ def build_matrices(param, profiles, mode_data):
     a = np.zeros_like(L)
     b = np.zeros_like(L)
 
-    # 개선 사항: n, m이 같은 모드, +-1 차이만 나는 모드들만 계산되므로, 두번째 for문에서는 모든 k을 돌릴 필요가 없다.
-    # same_mn으로 같은 n, m을 가지는 모드들과 +-1 차이 나는 m을 가지는 모드들만 돌도록 하면 계산량이 줄어든다.
-    for i, k1 in enumerate(ks):
-        n1, m1, p1 = k1
-        
-        """
-        same_nm을 어떻게 구현할까?
-        1. same_nm[n, m] = [ k1, k2, k3, ...] # n, m이 같은 모드들의 인덱스를 저장하는 딕셔너리
-        2. same_nm[i] = [ k1, k2, k3, ...] # 현재 구현
+    groups = _build_nm_groups(ks)
 
-        same_nm = []
-        for i, k1 in enumerate(ks):
-            n1, m1, p1 = k1
-            for j, k2 in enumerate(ks):
-                n2, m2, p2 = k2
-                if n1 == n2 and m1 == m2:
-                    same_nm[i].append(j)
-                
-        same_nm = np.array(same_nm, dtype=object)
-        """
-        same_nm_ks = same_nm[i] # 같은 n, m을 가지는 k들
-        for j in same_nm_ks:
-            k2 = ks[j]
-            n2, m2, p2 = k2
-            
-            WWrdr = W[i] * W[j] * rdr
-            WWdr = W[i] * W[j] * dr
-            mq_n = m1/q - n1
+    for (n, m), S in groups.items():
+        Wg = W[S]
+        mq_n = m / q - n
+        ix = np.ix_(S, S)
 
-            # k_parallel kk' 계산
-            integrand_k_parallel = mq_n * WWrdr
-            k_parallel_kk = 1/rmajor * np.sum(integrand_k_parallel)
+        k_parallel[ix] = _weighted_cross(Wg, Wg, mq_n * rdr) / rmajor
+        n_k_parallel[ix] = _weighted_cross(Wg, Wg, n_hat * mq_n * rdr) / rmajor
+        Ti_k_parallel[ix] = _weighted_cross(Wg, Wg, Ti_hat * mq_n * rdr) / rmajor
+        tau_k_parallel[ix] = _weighted_cross(Wg, Wg, tau * mq_n * rdr) / rmajor
+        D_glf[ix] = (
+            -np.sqrt(8.0 / np.pi)
+            * _weighted_cross(Wg, Wg, np.sqrt(Ti_hat) * np.abs(mq_n) * rdr)
+            / rmajor
+        )
+        Gp[ix] = -rho_s * m * _weighted_cross(Wg, Wg, dpdr * dr)
+        Gn[ix] = -rho_s * m * _weighted_cross(Wg, Wg, dndr * dr)
+        GTi[ix] = -rho_s * m * _weighted_cross(Wg, Wg, dTidr * dr)
 
-            # n_k_parallel kk' 계산
-            integrand_n_k_parallel = n_hat * mq_n * WWrdr
-            n_k_parallel_kk = 1/rmajor * np.sum(integrand_n_k_parallel)
+    pref = rho_s / rmajor
 
-            # Ti_k_parallel kk' 계산
-            integrand_Ti_k_parallel = Ti_hat * mq_n * WWrdr
-            Ti_k_parallel_kk = 1/rmajor * np.sum(integrand_Ti_k_parallel)
+    for (n, m), S in groups.items():
+        Wi = W[S]
 
-            # tau_k_parallel kk' 계산
-            integrand_tau_k_parallel = tau * mq_n * WWrdr
-            tau_k_parallel_kk = 1/rmajor * np.sum(integrand_tau_k_parallel)
+        T = groups.get((n, m + 1))
+        if T is not None:
+            Wj = W[T]
+            dWj = dWdr[T]
+            ix = np.ix_(S, T)
 
-            # D_glf kk' 계산
-            integrand_D_glf = np.sqrt(Ti_hat) * np.abs(mq_n) * WWrdr
-            D_glf_kk = - np.sqrt(8/np.pi) * 1/rmajor * np.sum(integrand_D_glf)
-            
-            # Gp_kk' 계산
-            integrand_Gp = dpdr * WWdr
-            Gp_kk = - rho_s * m1 * np.sum(integrand_Gp)
+            weight_a1 = (
+                n_hat
+                * ((m + 1) * (1.0 + tau) + (d_lnn_dr + d_lntau_dr) * tau)
+                * dr
+            )
+            weight_a2 = n_hat * (1.0 + tau) * rdr
+            a[ix] += pref * (
+                _weighted_cross(Wi, Wj, weight_a1)
+                + _weighted_cross(Wi, dWj, weight_a2)
+            )
 
-            # Gn_kk' 계산
-            integrand_Gn = dndr * WWdr
-            Gn_kk = - rho_s * m1 * np.sum(integrand_Gn)
+            weight_b1 = n_hat * (m + 1 + d_lnn_dr) * dr
+            weight_b2 = n_hat * rdr
+            b[ix] += pref * (
+                _weighted_cross(Wi, Wj, weight_b1)
+                + _weighted_cross(Wi, dWj, weight_b2)
+            )
 
-            # GTi_kk' 계산
-            integrand_GTi = dTidr * WWdr
-            GTi_kk = - rho_s * m1 * np.sum(integrand_GTi)
+        T = groups.get((n, m - 1))
+        if T is not None:
+            Wj = W[T]
+            dWj = dWdr[T]
+            ix = np.ix_(S, T)
 
-            k_parallel[i, j] = k_parallel_kk
-            n_k_parallel[i, j] = n_k_parallel_kk
-            Ti_k_parallel[i, j] = Ti_k_parallel_kk
-            tau_k_parallel[i, j] = tau_k_parallel_kk
-            D_glf[i, j] = D_glf_kk
-            Gp[i, j] = Gp_kk
-            Gn[i, j] = Gn_kk
-            GTi[i, j] = GTi_kk
+            weight_a1 = (
+                n_hat
+                * ((m - 1) * (1.0 + tau) - (d_lnn_dr + d_lntau_dr) * tau)
+                * dr
+            )
+            weight_a2 = n_hat * (1.0 + tau) * rdr
+            a[ix] += pref * (
+                _weighted_cross(Wi, Wj, weight_a1)
+                - _weighted_cross(Wi, dWj, weight_a2)
+            )
 
-        m_plus_ks = m_plus[i] # n이 같고 m2=m1+1인 k들. p는 자유.
-        for j in m_plus_ks:
-            # j = index_of_mode[k2] # n이 같고 m이 m1+1인 모드의 인덱스
-            k2 = ks[j]
-            n2, m2, p2 = k2
-
-            # a_plus_kk' 계산
-            integrand_a_plus_1 = n_hat * ( (m1+1)*(1+tau) + (d_lnn_dr + d_lntau_dr) * tau ) * W[i] * W[j] * dr
-            integrand_a_plus_2 = n_hat * (1+tau) * W[i] * dWdr[j] * rdr
-            a_plus_kk = rho_s * 1/rmajor * np.sum(integrand_a_plus_1 + integrand_a_plus_2)
-
-            # b_plus_kk' 계산
-            integrand_b_plus_1 = n_hat * (m1+1+d_lnn_dr) * W[i] * W[j] * dr
-            integrand_b_plus_2 = n_hat * W[i] * dWdr[j] * rdr
-            b_plus_kk = rho_s * 1/rmajor * np.sum(integrand_b_plus_1 + integrand_b_plus_2)
-
-            a[i, j] += a_plus_kk
-            b[i, j] += b_plus_kk
-
-        m_minus_ks = m_minus[i] # m이 m1-1인 k들
-        for j in m_minus_ks:
-            k2 = ks[j]
-            n2, m2, p2 = k2
-            
-            # a_minus_kk' 계산
-            integrand_a_minus_1 = n_hat * ( (m1-1)*(1+tau) - (d_lnn_dr + d_lntau_dr) * tau ) * W[i] * W[j] * dr
-            integrand_a_minus_2 = n_hat * (1+tau) * W[i] * dWdr[j] * rdr
-            a_minus_kk = rho_s * 1/rmajor * np.sum(integrand_a_minus_1 - integrand_a_minus_2)
-
-            # b_minus_kk' 계산
-            integrand_b_minus_1 = n_hat * (m1-1-d_lnn_dr) * W[i] * W[j] * dr
-            integrand_b_minus_2 = n_hat * W[i] * dWdr[j] * rdr
-            b_minus_kk = rho_s * 1/rmajor * np.sum(integrand_b_minus_1 - integrand_b_minus_2)
-
-            a[i, j] += a_minus_kk
-            b[i, j] += b_minus_kk
-
-        continue 
-        for j, k2 in enumerate(ks):
-            n2, m2, p2 = k2
-            if n1 == n2 and m1 == m2:
-                WWrdr = W[i] * W[j] * rdr
-                WWdr = W[i] * W[j] * dr
-
-                # k_parallel kk' 계산
-                integrand_k_parallel = (m1/q - n1) * WWrdr
-                k_parallel_kk = 1/rmajor * np.sum(integrand_k_parallel)
-
-                # n_k_parallel kk' 계산
-                integrand_n_k_parallel = n_hat * (m1/q - n1) * WWrdr
-                n_k_parallel_kk = 1/rmajor * np.sum(integrand_n_k_parallel)
-
-                # Ti_k_parallel kk' 계산
-                integrand_Ti_k_parallel = Ti_hat * (m1/q - n1) * WWrdr
-                Ti_k_parallel_kk = 1/rmajor * np.sum(integrand_Ti_k_parallel)
-
-                # tau_k_parallel kk' 계산
-                integrand_tau_k_parallel = tau * (m1/q - n1) * WWrdr
-                tau_k_parallel_kk = 1/rmajor * np.sum(integrand_tau_k_parallel)
-
-                # D_glf kk' 계산
-                integrand_D_glf = np.sqrt(Ti_hat) * np.abs(m1/q - n1) * WWrdr
-                D_glf_kk = - np.sqrt(8/np.pi) * 1/rmajor * np.sum(integrand_D_glf)
-                
-                # Gp_kk' 계산
-                integrand_Gp = dpdr * WWdr
-                Gp_kk = - rho_s * m1 * np.sum(integrand_Gp)
-
-                # Gn_kk' 계산
-                integrand_Gn = dndr * WWdr
-                Gn_kk = - rho_s * m1 * np.sum(integrand_Gn)
-
-                # GTi_kk' 계산
-                integrand_GTi = dTidr * WWdr
-                GTi_kk = - rho_s * m1 * np.sum(integrand_GTi)
-
-                k_parallel[i, j] = k_parallel_kk
-                n_k_parallel[i, j] = n_k_parallel_kk
-                Ti_k_parallel[i, j] = Ti_k_parallel_kk
-                tau_k_parallel[i, j] = tau_k_parallel_kk
-                D_glf[i, j] = D_glf_kk
-                Gp[i, j] = Gp_kk
-                Gn[i, j] = Gn_kk
-                GTi[i, j] = GTi_kk
-
-            elif n1 == n2 and m1+1 == m2:
-                k_ = index_of_mode[n1, m1+1, p2]
-
-                # a_plus_kk' 계산
-                integrand_a_plus_1 = n_hat * ( (m1+1)*(1+tau) + (d_lnn_dr + d_lntau_dr) * tau ) * W[i] * W[k_] * dr
-                integrand_a_plus_2 = n_hat * (1+tau) * W[i] * dWdr[k_] * rdr
-                a_plus_kk = rho_s * 1/rmajor * np.sum(integrand_a_plus_1 + integrand_a_plus_2)
-
-                # b_plus_kk' 계산
-                integrand_b_plus_1 = n_hat * (m1+1+d_lnn_dr) * W[i] * W[k_] * dr
-                integrand_b_plus_2 = n_hat * W[i] * dWdr[k_] * rdr
-                b_plus_kk = rho_s * 1/rmajor * np.sum(integrand_b_plus_1 + integrand_b_plus_2)
-
-                a[i, j] += a_plus_kk
-                b[i, j] += b_plus_kk
-
-            elif m1-1 == m2 and n1 == n2:
-                k_ = index_of_mode[n1, m1-1, p2]
-
-                # a_minus_kk' 계산
-                integrand_a_minus_1 = n_hat * ( (m1-1)*(1+tau) - (d_lnn_dr + d_lntau_dr) * tau ) * W[i] * W[k_] * dr
-                integrand_a_minus_2 = n_hat * (1+tau) * W[i] * dWdr[k_] * rdr
-                a_minus_kk = rho_s * 1/rmajor * np.sum(integrand_a_minus_1 - integrand_a_minus_2)
-
-                # b_minus_kk' 계산
-                integrand_b_minus_1 = n_hat * (m1-1-d_lnn_dr) * W[i] * W[k_] * dr
-                integrand_b_minus_2 = n_hat * W[i] * dWdr[k_] * rdr
-                b_minus_kk = rho_s * 1/rmajor * np.sum(integrand_b_minus_1 - integrand_b_minus_2)
-
-                a[i, j] += a_minus_kk
-                b[i, j] += b_minus_kk
+            weight_b1 = n_hat * (m - 1 - d_lnn_dr) * dr
+            weight_b2 = n_hat * rdr
+            b[ix] += pref * (
+                _weighted_cross(Wi, Wj, weight_b1)
+                - _weighted_cross(Wi, dWj, weight_b2)
+            )
 
     D_glf = param.damping_glf*D_glf
 

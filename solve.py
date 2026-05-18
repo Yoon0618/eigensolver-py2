@@ -7,6 +7,7 @@ import numpy as np
 from utils import timed
 from scipy.sparse import csr_matrix, issparse
 from scipy.sparse.linalg import eigs, LinearOperator, expm_multiply
+import time
 
 def sparse_check(A):
     """
@@ -58,6 +59,8 @@ def construct_A_matrix(mode_data, mat_data):
 
     print("calculating Aij matrices...")
 
+    t_start = time.time()
+
     # A 행렬을 조립한다. A는 3N x 3N 행렬로, N은 모드의 총 개수이다.
     A11 = invM @ (-a + Gp @ L + Gn @ J0 + 1j*Dc @ M)
     A12 = -invM @ b
@@ -68,6 +71,9 @@ def construct_A_matrix(mode_data, mat_data):
     A31 = k_parallel + tau_k_parallel
     A32 = k_parallel
     A33 = 1j * Dc
+
+    t_end = time.time()
+    print(f"Aij matrices calculated in {t_end - t_start:.2f} seconds")
 
     # matlab 코드는 3N x 3N 크기의 A 행렬을 조립한 다음, n 모드별로 블록 대각화해서 각 n 모드에 해당하는 A 블록을 저장한다.
     # 대신 메모리를 아끼기 위해
