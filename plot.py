@@ -34,6 +34,10 @@ def plot_eigenvalues(param, profiles, solve_data, save=True, show=True):
     ax.plot(k_thetas_rho_i, gammas, 'o-', label='Growth Rate') # 파란색 점
     ax.plot(k_thetas_rho_i, omegas, 's-', label='Frequency/4') # 빨간색 점
     ax.set_xlabel(r'$k_{\theta} \rho_i$')
+    ax_top = ax.secondary_xaxis("top")
+    ax_top.set_xticks(k_thetas_rho_i)
+    ax_top.set_xticklabels([str(int(n)) for n in n_values], fontsize=8)
+    ax_top.set_xlabel("n")
     ax.set_ylabel('Growth Rate, Frequency/4')
     text = f"basis: {param.basis}\nmethod: {param.method}\nparameters:\n {param.n_start} <= n <= {param.n_end}, $\\Delta$n={param.n_delta}\n 1 <= m <= {param.m}, $\\Delta$m=1\n 0 <= p < {param.p}\n"
     ax.text(0.5, 0.5, text, transform=plt.gca().transAxes, fontsize=10, verticalalignment='center', horizontalalignment='center', bbox=dict(facecolor='white', alpha=0.8))

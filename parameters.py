@@ -8,8 +8,8 @@ class Params:
     n_start: int = 4
     n_delta: int = 4
     n_end: int = 48
-    m: int = 50
-    p: int = 10
+    m: int = 150
+    p: int = 50
 
     basis: str = "hermite" # "bessel" or "hermite"
     method: str = "time_evolution" # "eigenproblem", "time_evolution", or "matrix_exponential"
@@ -152,6 +152,77 @@ def build_profiles(param):
         "dTi_dr": dTi_dr,
         "dpi_dr": dpi_dr,
     }
+
+
+def main():
+    import matplotlib.pyplot as plt
+
+    param = Params()
+    profiles = build_profiles(param)
+
+    rs = profiles["rs"]
+
+    def as_profile_line(values):
+        values = np.asarray(values, dtype=float)
+        if values.ndim == 0 or values.shape == (1,):
+            return np.full_like(rs, float(values.reshape(-1)[0]))
+        return values
+
+    profile_lines = [
+        ("q", as_profile_line(profiles["q_profile"](rs))),
+        ("n_hat", as_profile_line(profiles["n_hat"])),
+        ("Te_hat", as_profile_line(profiles["Te_hat"])),
+        ("Ti_hat", as_profile_line(profiles["Ti_hat"])),
+        ("pi_hat", as_profile_line(profiles["pi_hat"])),
+        ("tau", as_profile_line(profiles["tau"])),
+    ]
+
+    log_gradient_lines = [
+        ("d_lnn_dr", as_profile_line(profiles["d_lnn_dr"])),
+        ("d_lnTi_dr", as_profile_line(profiles["d_lnTi_dr"])),
+        ("d_lnTe_dr", as_profile_line(profiles["d_lnTe_dr"])),
+        ("d_lnpi_dr", as_profile_line(profiles["d_lnpi_dr"])),
+        ("d_lntau_dr", as_profile_line(profiles["d_lntau_dr"])),
+    ]
+
+    raw_gradient_lines = [
+        ("dn_dr", as_profile_line(profiles["dn_dr"])),
+        ("dTi_dr", as_profile_line(profiles["dTi_dr"])),
+        ("dpi_dr", as_profile_line(profiles["dpi_dr"])),
+    ]
+
+    fig, axes = plt.subplots(3, 1, figsize=(10, 10), sharex=True)
+
+    for label, values in profile_lines:
+        axes[0].plot(rs, values, label=label)
+    axes[0].set_ylabel("profile")
+    # axes[0].set_title("Equilibrium profiles")
+
+    for label, values in log_gradient_lines:
+        axes[1].plot(rs, values, label=label)
+    axes[1].set_ylabel("log gradient")
+
+    for label, values in raw_gradient_lines:
+        axes[2].plot(rs, values, label=label)
+    axes[2].set_xlabel("r / a")
+    axes[2].set_ylabel("raw gradient")
+
+    for ax in axes:
+        ax.grid(True)
+        ax.legend()
+
+    
+
+    fig.tight_layout()
+    plt.savefig(f"{param.save_dir}/profiles_{param.suffix}.png", dpi=300)
+    plt.show()
+
+    return 0
+
+
+if __name__ == "__main__":
+    main()
+
 
 """
 original MATLAB code for profiles:
